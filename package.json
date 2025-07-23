@@ -1,0 +1,25 @@
+{
+  "scripts": {
+    "build:css": "tailwindcss -i ./style/tailwind.css -o ./target/site/pkg/koin.css --minify",
+    "build:wasm": "cargo build --lib --target wasm32-unknown-unknown --features hydrate --release",
+    "build:bindings": "wasm-bindgen target/wasm32-unknown-unknown/release/koin.wasm --out-name koin --no-typescript --target web --out-dir target/site/pkg --remove-name-section --remove-producers-section --weak-refs --omit-default-module-path",
+    "build:server": "cargo build --bin koin --features ssr --release",
+    "copy:sw": "copy assets\\sw.js target\\site\\ || cp assets/sw.js target/site/",
+    "copy:wasm": "copy target\\site\\pkg\\koin_bg.wasm target\\site\\pkg\\koin.wasm || cp target/site/pkg/koin_bg.wasm target/site/pkg/koin.wasm",
+    "fix:hydration": "node fix-crossorigin.js",
+    "build": "npm run build:css && npm run build:wasm && npm run build:bindings && npm run build:server && npm run copy:sw && npm run copy:wasm && npm run fix:hydration",
+    "dev": "cargo leptos watch",
+    "test": "cargo test"
+  },
+  "dependencies": {
+    "wrangler": "^4.25.1"
+  },
+  "devDependencies": {
+    "@tailwindcss/forms": "^0.5.10",
+    "@tailwindcss/typography": "^0.5.16",
+    "autoprefixer": "^10.4.21",
+    "postcss": "^8.5.6",
+    "postcss-cli": "^11.0.1",
+    "tailwindcss": "^3.4.17"
+  }
+}

@@ -1,0 +1,35 @@
+name = "koin"
+main = "build/worker/shim.mjs"
+compatibility_date = "2025-07-12"
+
+[build]
+command = "npm run build"
+
+[assets]
+directory = "./target/site"
+
+# Performance optimizations
+[env.production]
+# Enable compression for better performance
+vars = { NODE_ENV = "production" }
+
+# Add custom headers for performance
+[[env.production.rules]]
+type = "Header"
+src = "*.js"
+headers = { "Cache-Control" = "public, max-age=31536000, immutable" }
+
+[[env.production.rules]]
+type = "Header"
+src = "*.css"
+headers = { "Cache-Control" = "public, max-age=31536000, immutable" }
+
+[[env.production.rules]]
+type = "Header"
+src = "*.wasm"
+headers = { "Cache-Control" = "public, max-age=31536000, immutable", "Content-Type" = "application/wasm" }
+
+[[env.production.rules]]
+type = "Header"
+src = "*"
+headers = { "X-Content-Type-Options" = "nosniff", "X-Frame-Options" = "DENY", "X-XSS-Protection" = "1; mode=block" }
