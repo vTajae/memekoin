@@ -2,7 +2,6 @@
 name = "koin"
 version = "0.1.0"
 edition = "2021"
-authors = ["ronald <hi@gmail.com>"]
 
 [profile.release]
 opt-level = "s"   # optimize for size in release builds
@@ -21,23 +20,33 @@ crate-type = ["cdylib"]
 
 [[bin]]
 name = "koin"
-required-features = ["ssr"]
+path = "src/main.rs"
+
+
+
+
 
 [dependencies]
-axum = { version = "0.8", default-features = false, optional = true }
-console_error_panic_hook = "0.1"
-# getrandom = { version = "0.2", features = ["js"] }
-leptos = { version = "0.8", features = ["nightly"] }
-leptos_axum = { version = "0.8", default-features = false, features = ["wasm"], optional = true }
-leptos_meta = { version = "0.8" }
-leptos_router = { version = "0.8", features = ["nightly"] }
-tower-service = "0.3"
+# Core Leptos dependencies
+console_error_panic_hook = { version = "0.1", optional = true }
+leptos = { version = "0.8", default-features = false, features = ["ssr"] }
+leptos_meta = { version = "0.8", default-features = false }
+leptos_router = { version = "0.8", default-features = false }
 wasm-bindgen = "0.2.100"
-worker = { version = "0.5", features = ["http", "axum", "d1"], optional = true }
 serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
 regex = "1.0"
 chrono = { version = "0.4", features = ["serde"] }
-tokio = { version = "1.0", features = ["time"] }
+
+# Cloudflare Workers dependencies
+worker = { version = "0.5", features = ["http", "axum", "d1"], optional = true }
+
+# Server-side dependencies (for local development with axum)
+axum = { version = "0.8", default-features = false, optional = true }
+leptos_axum = { version = "0.8", default-features = false, features = ["wasm"], optional = true }
+tokio = { version = "1.0", features = ["time", "macros", "rt-multi-thread"], optional = true }
+tower-service = { version = "0.3" }
+http = { version = "1.0" }
 js-sys = "0.3.77"
 wasm-bindgen-futures = "0.4.50"
 web-sys = { version = "0.3.77", features = [
@@ -54,38 +63,76 @@ web-sys = { version = "0.3.77", features = [
   "SubtleCrypto",
 ] }
 
+# Trading and HFT dependencies (simplified for now)
+# barter = { version = "0.6", optional = true }
+# barter-data = { version = "0.6", optional = true }
+# barter-execution = { version = "0.5", optional = true }
+# barter-integration = { version = "0.6", optional = true }
+# barter-instrument = { version = "0.3", optional = true }
+# WASM-compatible trading dependencies
+rust_decimal = { version = "1.0", features = ["serde"], optional = true }
+rust_decimal_macros = { version = "1.0", optional = true }
+uuid = { version = "1.0", features = ["v4", "serde", "js"], optional = true }
+hmac = { version = "0.12", optional = true }
+sha2 = { version = "0.10", optional = true }
+base64 = { version = "0.22", optional = true }
+thiserror = { version = "1.0", optional = true }
+
+# Server-only dependencies (not WASM-compatible)
+futures = { version = "0.3", optional = true }
+tracing = { version = "0.1", optional = true }
+tracing-subscriber = { version = "0.3", optional = true }
+reqwest = { version = "0.12", features = ["json"], optional = true }
+tokio-tungstenite = { version = "0.24", optional = true }
+
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-getrandom = { version = "0.2", features = ["js"] }
+getrandom = { version = "0.3", features = ["wasm_js"] }
 
 [features]
-default = ["hydrate"]
-hydrate = ["leptos/hydrate"]
+default = []
+hydrate = [
+  "leptos/hydrate",
+  "leptos/csr",
+  "console_error_panic_hook",
+]
+
 ssr = [
   "dep:axum",
   "dep:leptos_axum",
   "dep:worker",
   "leptos/ssr",
   "leptos_router/ssr",
+  "console_error_panic_hook",
 ]
+
+console_error_panic_hook = ["dep:console_error_panic_hook"]
+
+trading = [
+  # Basic trading dependencies (WASM-compatible only)
+  "dep:rust_decimal",
+  "dep:rust_decimal_macros",
+  "dep:uuid",
+  "dep:hmac",
+  "dep:sha2",
+  "dep:base64",
+  "dep:thiserror",
+]
+
+# Optimize for WASM
+[profile.wasm-release]
+inherits = "release"
+opt-level = 'z'
+lto = true
+codegen-units = 1
+panic = "abort"
+
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = false
 
 [package.metadata.leptos]
 wasm-validation = false
 # The name used by wasm-bindgen/cargo-leptos for the JS/WASM bundle. Defaults to the crate name
 output-name = "koin"
-
-# Which binary target to use for the server
-bin-target = "koin"
-
-[package.metadata.wasm-pack.profile.release]
-wasm-opt = [
-    "-Oz",                          # Optimize aggressively for size
-    "--enable-mutable-globals",     # Enable mutable globals
-    "--enable-bulk-memory",         # Enable bulk memory operations
-    "--enable-sign-ext",            # Enable sign extension
-    "--strip-debug",                # Strip debug information
-    "--strip-producers",            # Strip producers section
-    "--vacuum",                     # Remove unused code
-]
 
 # The site root folder is where cargo-leptos generate all output. WARNING: all content of this folder will be erased on a rebuild. Use it in your server setup.
 site-root = "target/site"
@@ -94,8 +141,8 @@ site-root = "target/site"
 # Defaults to pkg
 site-pkg-dir = "pkg"
 
-# [Optional] The source CSS file. If it ends with .sass or .scss then it will be compiled by dart-sass into CSS. The CSS is optimized by Lightning CSS before being written to <site-root>/<site-pkg>/app.css
-style-file = "style/tailwind.css"
+# [Optional] The source CSS file. If it ends with .sass or .scss then it will be compiled by dart-sass into CSS. The CSS is optimized by Lightning CSS before being written to <site-root>/<site-pkg-dir>/app.css
+style-file = "style/compiled.css"
 
 # Assets source dir. All files found here will be copied and synchronized to site-root.
 # The assets-dir cannot have a sub directory with the same name/path as site-pkg-dir.
@@ -110,12 +157,12 @@ site-addr = "127.0.0.1:8787"
 reload-port = 3001
 
 # [Optional] Command to use when running end2end tests. It will run in the end2end dir.
-#   [Windows] for non-WSL use "npx.cmd playwright test"
-#   This binary name can be checked in Powershell with Get-Command npx
+# [Windows] for non-WSL use "npx.cmd playwright test"
+# This binary name can be checked in Powershell with Get-Command npx
 end2end-cmd = "cargo make test-ui"
 end2end-dir = "end2end"
 
-#  The browserlist query used for optimizing the CSS.
+# The browserlist query used for optimizing the CSS.
 browserquery = "defaults"
 
 # Set by cargo-leptos watch when building with that tool. Controls whether autoreload JS will be included in the head
@@ -123,6 +170,8 @@ watch = false
 
 # The environment Leptos will run in, usually either "DEV" or "PROD"
 env = "DEV"
+
+
 
 # The features to use when compiling the bin target
 #
@@ -132,7 +181,7 @@ bin-features = ["ssr"]
 # If the --no-default-features flag should be used when compiling the bin target
 #
 # Optional. Defaults to false.
-bin-default-features = true
+bin-default-features = false
 
 # The features to use when compiling the lib target
 #
@@ -142,4 +191,4 @@ lib-features = ["hydrate"]
 # If the --no-default-features flag should be used when compiling the lib target
 #
 # Optional. Defaults to false.
-lib-default-features = true
+lib-default-features = false

@@ -1,7 +1,7 @@
 use leptos::prelude::*;
 
 #[component]
-pub fn HomePage() -> impl IntoView {
+pub fn TradingPage() -> impl IntoView {
     // Simple counter for testing
     let (counter, set_counter) = signal(0);
 
@@ -13,10 +13,10 @@ pub fn HomePage() -> impl IntoView {
         <div class="container mx-auto py-12 px-4">
             <div class="text-center mb-12">
                 <h1 class="text-5xl font-bold text-gray-900 mb-4">
-                    "Welcome to " <span class="text-blue-600">"Meme Koin"</span>
+                    "Trading " <span class="text-blue-600">"Dashboard"</span>
                 </h1>
                 <p class="text-xl text-gray-600 max-w-2xl mx-auto">
-                    "Enterprise-grade meme cryptocurrency platform built with Rust, Leptos, and Cloudflare Workers"
+                    "Advanced cryptocurrency trading interface"
                 </p>
             </div>
 

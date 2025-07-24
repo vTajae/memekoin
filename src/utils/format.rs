@@ -1,6 +1,43 @@
 /// Format a number as currency with the specified symbol
-pub fn format_currency(amount: f64, symbol: &str) -> String {
+pub fn format_currency_with_symbol(amount: f64, symbol: &str) -> String {
     format!("{}{:.2}", symbol, amount)
+}
+
+/// Format a price with appropriate decimal places for trading
+pub fn format_price(price: f64) -> String {
+    if price >= 1000.0 {
+        format!("{:.2}", price)
+    } else if price >= 1.0 {
+        format!("{:.4}", price)
+    } else if price >= 0.01 {
+        format!("{:.6}", price)
+    } else {
+        format!("{:.8}", price)
+    }
+}
+
+/// Format a currency amount (defaults to USD)
+pub fn format_currency(amount: f64) -> String {
+    if amount.abs() >= 1_000_000.0 {
+        format!("${:.2}M", amount / 1_000_000.0)
+    } else if amount.abs() >= 1_000.0 {
+        format!("${:.2}K", amount / 1_000.0)
+    } else {
+        format!("${:.2}", amount)
+    }
+}
+
+/// Format trading volume with appropriate units
+pub fn format_volume(volume: f64) -> String {
+    if volume >= 1_000_000_000.0 {
+        format!("{:.2}B", volume / 1_000_000_000.0)
+    } else if volume >= 1_000_000.0 {
+        format!("{:.2}M", volume / 1_000_000.0)
+    } else if volume >= 1_000.0 {
+        format!("{:.2}K", volume / 1_000.0)
+    } else {
+        format!("{:.2}", volume)
+    }
 }
 
 /// Format a number with thousands separators
@@ -20,8 +57,13 @@ pub fn format_number(num: i64) -> String {
 }
 
 /// Format a percentage with the specified decimal places
-pub fn format_percentage(value: f64, decimal_places: usize) -> String {
+pub fn format_percentage_with_decimals(value: f64, decimal_places: usize) -> String {
     format!("{:.1$}%", value * 100.0, decimal_places)
+}
+
+/// Format a percentage (defaults to 2 decimal places)
+pub fn format_percentage(value: f64) -> String {
+    format!("{:.2}%", value)
 }
 
 /// Format a file size in human-readable format

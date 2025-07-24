@@ -106,6 +106,51 @@ pub fn validate_amount(amount: &str) -> Result<f64, String> {
     }
 }
 
+// Trading-specific validation functions
+
+/// Validate a trading symbol format (e.g., BTCUSDT, ETH-USD)
+pub fn validate_trading_symbol(symbol: &str) -> bool {
+    let symbol_regex = Regex::new(r"^[A-Z]{2,10}[-/]?[A-Z]{2,10}$").unwrap();
+    symbol_regex.is_match(symbol)
+}
+
+/// Validate a trading quantity (must be positive)
+pub fn validate_quantity(quantity: f64) -> bool {
+    quantity > 0.0 && quantity.is_finite()
+}
+
+/// Validate a trading price (must be positive)
+pub fn validate_price(price: f64) -> bool {
+    price > 0.0 && price.is_finite()
+}
+
+/// Validate a percentage value (between -100 and 100)
+pub fn validate_percentage(percentage: f64) -> bool {
+    percentage >= -100.0 && percentage <= 100.0 && percentage.is_finite()
+}
+
+/// Validate an API key format
+pub fn validate_api_key(api_key: &str) -> bool {
+    // Basic validation: should be alphanumeric and of reasonable length
+    let api_key_regex = Regex::new(r"^[a-zA-Z0-9]{16,128}$").unwrap();
+    api_key_regex.is_match(api_key)
+}
+
+/// Validate a stop loss percentage (should be negative and reasonable)
+pub fn validate_stop_loss(stop_loss_percent: f64) -> bool {
+    stop_loss_percent < 0.0 && stop_loss_percent >= -50.0 && stop_loss_percent.is_finite()
+}
+
+/// Validate a take profit percentage (should be positive and reasonable)
+pub fn validate_take_profit(take_profit_percent: f64) -> bool {
+    take_profit_percent > 0.0 && take_profit_percent <= 1000.0 && take_profit_percent.is_finite()
+}
+
+/// Validate leverage value (typically 1-100x)
+pub fn validate_leverage(leverage: f64) -> bool {
+    leverage >= 1.0 && leverage <= 100.0 && leverage.is_finite()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

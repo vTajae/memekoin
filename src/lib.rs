@@ -1,51 +1,68 @@
 #[cfg(feature = "ssr")]
 use worker::*;
 
+#[cfg(feature = "ssr")]
+use crate::app::{App, shell};
+
+#[cfg(feature = "hydrate")]
+use crate::app::App;
+
 pub mod app;
-pub mod components;
-pub mod pages;
-pub mod server;
-pub mod utils;
+mod components;
+
+#[cfg(feature = "ssr")]
+pub fn register_server_functions() {
+    // use leptos::server_fn::axum::register_explicit;
+    // Add all of your server functions here when you have them
+    // register_explicit::<YourServerFunction>();
+}
+
+#[cfg(feature = "ssr")]
+async fn router(env: Env) -> axum::Router {
+    use std::sync::Arc;
+    use axum::{Extension, Router};
+    use leptos::prelude::*;
+    use leptos_axum::{generate_route_list, LeptosRoutes};
+
+    let conf = get_configuration(None).unwrap();
+    let leptos_options = conf.leptos_options;
+    let routes = generate_route_list(App);
+
+    register_server_functions();
+
+    // build our application with a route
+    Router::new()
+        .leptos_routes(&leptos_options, routes, {
+            let leptos_options = leptos_options.clone();
+            move || shell(leptos_options.clone())
+        })
+        .with_state(leptos_options)
+        .layer(Extension(Arc::new(env))) // <- Allow leptos server functions to access Worker stuff
+}
+
+#[cfg(feature = "ssr")]
+#[event(fetch)]
+async fn fetch(
+    req: HttpRequest,
+    env: Env,
+    _ctx: Context,
+) -> Result<http::Response<axum::body::Body>> {
+    use tower_service::Service;
+
+    console_error_panic_hook::set_once();
+
+    Ok(router(env).await.call(req).await?)
+}
 
 #[cfg(feature = "hydrate")]
 #[wasm_bindgen::prelude::wasm_bindgen]
 pub fn hydrate() {
     console_error_panic_hook::set_once();
-
-    // Notify that WASM has loaded for performance tracking
-    if let Some(window) = web_sys::window() {
-        let _ = window.dispatch_event(&web_sys::CustomEvent::new("wasmLoaded").unwrap());
-    }
-
-    // Use hydrate_body to hydrate the existing server-rendered content
-    leptos::mount::hydrate_body(crate::app::App);
+    leptos::mount::hydrate_body(App);
 }
 
-#[cfg(feature = "ssr")]
-#[worker::event(fetch)]
-async fn fetch(
-    req: worker::HttpRequest,
-    _env: worker::Env,
-    _ctx: worker::Context,
-) -> worker::Result<axum::http::Response<axum::body::Body>> {
-    use axum::Router;
-    use leptos::prelude::*;
-    use leptos_axum::{generate_route_list, LeptosRoutes};
-    use tower_service::Service;
 
-    console_error_panic_hook::set_once();
 
-    let conf = get_configuration(None).unwrap();
-    let leptos_options = conf.leptos_options;
-    let routes = generate_route_list(crate::app::App);
 
-    // build our application with a route
-    let router = Router::new()
-        .leptos_routes(&leptos_options, routes, {
-            let leptos_options = leptos_options.clone();
-            move || view! { <crate::app::Shell _options=leptos_options.clone() /> }
-        })
-        .with_state(leptos_options);
 
-    router.call(req).await.map_err(|_| worker::Error::RustError("Router error".to_string()))
-}
+
