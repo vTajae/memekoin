@@ -1,0 +1,71 @@
+[package]
+name = "www-example-com-api"
+version = "0.1.0"
+edition = "2021"
+authors = [ "shellsort <cl.mertig@gmail.com>" ]
+
+[package.metadata.release]
+release = false
+
+# https://github.com/rustwasm/wasm-pack/issues/1247
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = false
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+# Core worker dependencies with axum feature for proper async handling (using working version)
+worker = { version = "0.5.0", features = ["http", "axum"] }
+worker-macros = { version = "0.5.0", features = ["http"] }
+console_error_panic_hook = { version = "0.1.1" }
+
+# Axum for routing with proper async support
+axum = { version = "0.7", default-features = false, features = ["json"] }
+tower-service = "0.3.2"
+
+# Database dependencies - Re-enabled with WASM compatibility
+tokio-postgres = { version="0.7.13", features=["with-uuid-1","with-chrono-0_4"], default-features=false }
+
+# WASM and HTTP client dependencies
+wasm-bindgen = "0.2.100"
+js-sys = "0.3.77"
+wasm-bindgen-futures = "0.4.50"
+web-sys = { version = "0.3.77", features = [
+  "console",
+  "Headers",
+  "Request",
+  "RequestInit",
+  "RequestMode",
+  "Response",
+  "Window",
+  "AbortController",
+  "AbortSignal",
+] }
+
+# HTTP client for API requests (WASM-compatible)
+gloo-net = { version = "0.6", features = ["http"] }
+
+# UUID and time handling
+uuid = { version = "1.17.0", features = ["v4", "js"] }
+chrono = { version = "0.4.41", features = ["serde", "js-sys"] }
+
+# Authentication and serialization dependencies
+serde = { version = "1.0.219", features = ["derive"] }
+serde_json = "1.0.141"
+base64 = "0.22.1"
+sha2 = "0.10.8"
+
+# WASM support - Updated to 0.3.3 with wasm_js feature for WebAssembly compatibility
+getrandom = { version = "0.3.3", features = ["wasm_js"] }
+
+# Trading framework dependencies (WASM-compatible)
+rust_decimal = { version = "1.36.0", features = ["serde"] }
+rust_decimal_macros = "1.29.1"
+
+# Trading framework dependencies (WASM-compatible)
+# Note: Removed barter-rs as it's not compatible with WASM/Cloudflare Workers
+# Using custom trading implementation instead
+
+
+

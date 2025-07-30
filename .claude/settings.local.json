@@ -1,0 +1,37 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:book.leptos.dev)",
+      "WebFetch(domain:github.com)",
+      "Bash(powershell:*)",
+      "mcp__playwright__browser_navigate",
+      "Bash(trunk build:*)",
+      "Bash(grep:*)",
+      "Bash(cargo:*)",
+      "Bash(rm:*)",
+      "mcp__playwright__browser_snapshot",
+      "mcp__playwright__browser_click",
+      "mcp__playwright__browser_type",
+      "mcp__playwright__browser_take_screenshot",
+      "mcp__sequential-thinking__sequentialthinking",
+      "WebFetch(domain:gitlab.com)",
+      "mcp__playwright__browser_network_requests",
+      "mcp__playwright__browser_wait_for",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:docs.rs)",
+      "Bash(npx wrangler dev:*)",
+      "Bash(wrangler login:*)",
+      "WebFetch(domain:neon.tech)",
+      "WebFetch(domain:neon.com)",
+      "Bash(del \"C:\\Users\\Jason\\Desktop\\Revamp\\fullstack-leptos-cloudflare-template\\axum-worker\\src\\d1_db.rs\")",
+      "Bash(set RUSTFLAGS=\"--cfg web_sys_unstable_apis\")",
+      "Bash(set RUSTFLAGS=\"--cfg=web_sys_unstable_apis\")",
+      "Bash(set CARGO_ENCODED_RUSTFLAGS=\"--cfg=web_sys_unstable_apis\")",
+      "mcp__playwright__browser_evaluate",
+      "Bash($env:RUSTFLAGS=\"--cfg getrandom_js\")",
+      "Bash(curl:*)",
+      "Bash(timeout:*)"
+    ],
+    "deny": []
+  }
+}

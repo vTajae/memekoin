@@ -1,9 +1,0 @@
-name = "koin"
-main = "build/worker/shim.mjs"
-compatibility_date = "2024-12-19"
-
-[build]
-command = "cargo leptos build --release && powershell -Command \"$env:LEPTOS_OUTPUT_NAME='koin'; worker-build --release --features ssr\""
-
-[assets]
-directory = "./target/site"

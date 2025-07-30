@@ -1,0 +1,25 @@
+name = "www-example-com-api"
+main = "build/worker/shim.mjs"
+compatibility_date = "2025-06-05"
+
+[assets]
+directory = "./static"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+
+[build]
+command = "cargo install -q worker-build && worker-build --release"
+
+
+[vars]
+DB_CONNECTION_STRING = 'postgresql://neondb_owner:npg_Vq4GHb3OFxdw@ep-wispy-bread-ae0fl1we-pooler.c-2.us-east-2.aws.neon.tech/neondb?sslmode=require&channel_binding=require'
+JWT_SECRET = "your-super-secret-jwt-key-change-this-in-production"
+
+# Trading API Keys - Replace with your actual API keys
+BINANCE_API_KEY = "your-binance-api-key-here"
+BINANCE_API_SECRET = "your-binance-api-secret-here"
+COINBASE_API_KEY = "your-coinbase-api-key-here"
+COINBASE_API_SECRET = "your-coinbase-api-secret-here"
+COINBASE_PASSPHRASE = "your-coinbase-passphrase-here"
+KRAKEN_API_KEY = "your-kraken-api-key-here"
+KRAKEN_API_SECRET = "your-kraken-api-secret-here"

@@ -1,38 +1,36 @@
-# Leptos
+# Fullstack Leptos-Cloudflare Template
 
-This template demonstrates the use of the [Leptos](https://leptos.dev/)
-framework on Workers, including support for server side rendering and
-server functions.
+## What is this:
+Having trouble getting SSR Leptos to run as a Cloudflare worker?
+Me too.
 
-Frontend assets are built using `cargo leptos` by compiling the crate
-with the `hydrate` feature. The backend module uses `workers-rs` and
-is built by compiling the crate using `worker-build` with the `ssr`
-feature. This is done automatically when using `wrangler` with
-the custom build command specified in `wrangler.toml`.
+This Template is a close workaround:
+- /leptos-wasm contains a CSR Leptos App with trunk and tailwindcss preconfigured.
+- /axum-worker contains an axum worker
 
-Frontend assets are served using Workers Assets. Any request which
-matches an asset path will be served directly and not invoke the
-Worker. Requests which do not match an asset path will invoke the
-Worker. This includes requests to `index.html` (which will be
-server-side rendered) and any server function (API) routes.
+They are coupled so that you will only need to deploy one worker serving both your /api endpoints and your static files (including the actual wasm frontend-app).
 
-# Setup
+### Advantages:
+- You can use leptos and axum as worker together already today - making merging into a SSR Leptos Worker easy once that is more stable.
+- Has Tailwindcss preconfigured; is otherwise unopinionated.
+- Dead simple to use & blazingly fast
 
-[Cargo Leptos](https://github.com/leptos-rs/cargo-leptos) is required
-to build the project.
+## How to setup:
+- Make sure you have a Cloudflare Account.
+- Clone the Repo
+- That's it, you can start coding.
 
-```
-cargo install --locked cargo-leptos
-```
+## How to use:
+To **develop** with auto-reload, just run the dev.sh file.
 
-# Run Locally
+To **deploy**, run
+> trunk build --release
 
-```
-npx wrangler dev
-```
+in /leptos-wasm and
 
-# Deploy
+> npx wrangler deploy
 
-```
-npx wrangler deploy
-```
+in /axum-worker.
+
+## Disclaimer:
+I dont take responsibility for shit. Cobbled this together in one afternoon. Use at your own risk.
