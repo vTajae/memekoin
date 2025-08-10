@@ -1,25 +1,33 @@
 name = "www-example-com-api"
 main = "build/worker/shim.mjs"
-compatibility_date = "2025-06-05"
+compatibility_date = "2024-06-05"
 
 [assets]
 directory = "./static"
 binding = "ASSETS"
 not_found_handling = "single-page-application"
+run_worker_first = ["/api/*"]
+
 
 [build]
 command = "cargo install -q worker-build && worker-build --release"
 
-
 [vars]
-DB_CONNECTION_STRING = 'postgresql://neondb_owner:npg_Vq4GHb3OFxdw@ep-wispy-bread-ae0fl1we-pooler.c-2.us-east-2.aws.neon.tech/neondb?sslmode=require&channel_binding=require'
+BASE_URL='http://127.0.0.1:8787'
+
+# Correct database URL for ep-floral-sea-aejx1ghr endpoint
+
+DEV_DATABASE_URL = 'postgres://leptos_user:leptos_pass@localhost:5432/leptos_db'
+_2DEV_DATABASE_URL = 'postgresql://neondb_owner:npg_ocI9CHyqFpk2@ep-floral-sea-aejx1ghr-pooler.c-2.us-east-2.aws.neon.tech/neondb?sslmode=require&channel_binding=require'
+_1DEV_DATABASE_URL = 'postgresql://neondb_owner:npg_Vq4GHb3OFxdw@ep-wispy-bread-ae0fl1we-pooler.c-2.us-east-2.aws.neon.tech/neondb?sslmode=require'
+_PROD_DATABASE_URL = 'postgresql://neondb_owner:npg_Vq4GHb3OFxdw@ep-fancy-salad-aee10xg1-pooler.c-2.us-east-2.aws.neon.tech/neondb?sslmode=require&channel_binding=require'
+_NEONMCPKEY = 'napi_172rdjxl3lk8afxo7lvnkclewphjy8w750gfgwd3hl62yv1pjnn2fe4omxj4r161'
+
 JWT_SECRET = "your-super-secret-jwt-key-change-this-in-production"
 
-# Trading API Keys - Replace with your actual API keys
-BINANCE_API_KEY = "your-binance-api-key-here"
-BINANCE_API_SECRET = "your-binance-api-secret-here"
-COINBASE_API_KEY = "your-coinbase-api-key-here"
-COINBASE_API_SECRET = "your-coinbase-api-secret-here"
-COINBASE_PASSPHRASE = "your-coinbase-passphrase-here"
-KRAKEN_API_KEY = "your-kraken-api-key-here"
-KRAKEN_API_SECRET = "your-kraken-api-secret-here"
+# Google OAuth Configuration for Phase 2 Authentication
+GOOGLE_CLIENT_ID = "1025434526562-aakomfir0hbmf8tu4a8tlrkeq4bmvgtc.apps.googleusercontent.com"
+GOOGLE_CLIENT_SECRET = "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"
+GOOGLE_REDIRECT_URI = "http://127.0.0.1:8787/api/auth/oauth/callback"
+GOOGLE_PROJECT_ID = "steady-freedom-443321-p7"
+SESSION_SECRET = "phase2-auth-secret-key-change-in-production-256-bit-long"

@@ -1,7 +1,7 @@
 [package]
 name = "www-example-com-api"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 authors = [ "shellsort <cl.mertig@gmail.com>" ]
 
 [package.metadata.release]
@@ -15,57 +15,77 @@ wasm-opt = false
 crate-type = ["cdylib"]
 
 [dependencies]
-# Core worker dependencies with axum feature for proper async handling (using working version)
-worker = { version = "0.5.0", features = ["http", "axum"] }
-worker-macros = { version = "0.5.0", features = ["http"] }
-console_error_panic_hook = { version = "0.1.1" }
+tracing-web = "0.1"
+tracing-subscriber = { version = "0.3", features=['time', 'json'] }
+worker = { version="0.6.1", features=['http', 'axum', 'tokio-postgres'] }
+worker-macros = { version="0.6.1", features=['http'] }
+axum  = { version = "0.8.4", default-features = false, features = ["json", "query", "macros"] }
+tower-service = "0.3.3"
+async-trait = "0.1.88"
 
-# Axum for routing with proper async support
-axum = { version = "0.7", default-features = false, features = ["json"] }
-tower-service = "0.3.2"
+# WASM-compatible session management - manual cookie approach
+# Remove complex dependencies, use simple header-based cookies
+# time = "0.3.41" - removed to avoid WASM issues
+# tower-cookies = "0.11.0"
+# axum-sessions = "0.6.1"
 
-# Database dependencies - Re-enabled with WASM compatibility
-tokio-postgres = { version="0.7.13", features=["with-uuid-1","with-chrono-0_4"], default-features=false }
-
-# WASM and HTTP client dependencies
+console_error_panic_hook = { version = "0.1.7" }
 wasm-bindgen = "0.2.100"
-js-sys = "0.3.77"
-wasm-bindgen-futures = "0.4.50"
-web-sys = { version = "0.3.77", features = [
-  "console",
-  "Headers",
-  "Request",
-  "RequestInit",
-  "RequestMode",
-  "Response",
-  "Window",
-  "AbortController",
-  "AbortSignal",
-] }
 
-# HTTP client for API requests (WASM-compatible)
-gloo-net = { version = "0.6", features = ["http"] }
-
-# UUID and time handling
-uuid = { version = "1.17.0", features = ["v4", "js"] }
+# Phase 1: Simplified dependencies - removing chrono, uuid, tokio-postgres to fix getrandom issues
+# Time handling for timestamps
 chrono = { version = "0.4.41", features = ["serde", "js-sys"] }
 
-# Authentication and serialization dependencies
+# Logging dependencies (WASM-compatible)
+tracing = "0.1.41"
+tracing-wasm = "0.2.1"
+
+# Database dependencies - WASM-compatible tokio-postgres with "js" feature (no mio dependency)
+tokio-postgres = { version = "0.7.13", default-features = false, features = ["js", "with-uuid-1", "with-chrono-0_4", "with-serde_json-1"] }
+wasm-bindgen-futures = "0.4.50"
+
+# Futures for async handling (WASM-compatible)
+futures = "0.3.31"
+tokio = { version = "1.47.1", default-features = false, features = ["macros", "rt", "sync", "time"] }
+
+# Axum-Cloudflare adapter for Send compatibility
+axum-cloudflare-adapter = "0.14.0"
+
+
+# Axum web framework for powerful routing and middleware (WASM-compatible)
+tower = { version = "0.5.2", default-features = false, features = ["util"] }
+
+# JSON serialization/deserialization
 serde = { version = "1.0.219", features = ["derive"] }
-serde_json = "1.0.141"
-base64 = "0.22.1"
+serde_json = "1.0.142"
+
+# Phase 1: Removing UUID to fix getrandom conflicts
+# UUID generation for sessions and users
+ uuid = { version = "1.17.0", features = ["v4", "js", "serde"] }
+
+# Base64 encoding for OAuth PKCE
+ base64 = "0.22.1"
+
+# URL parsing and validation
+ url = "2.5.4"
+
+# Phase 1: Commenting out complex dependencies causing WASM issues
+
+# Random number generation for security  
+getrandom = { version = "0.2", features = ["js"] }
+
+
+# URL encoding for OAuth parameters
+urlencoding = "2.1.3"
+
+# Direct web API access for real Google OAuth calls
+web-sys = { version = "0.3", features = ["Request", "RequestInit", "RequestMode", "Response", "Headers", "Window"] }
+js-sys = "0.3"
+serde-wasm-bindgen = "0.6"
+
+# Cryptographic dependencies (WASM-compatible)
+rand = { version = "0.8.5", features = ["getrandom"] }
 sha2 = "0.10.8"
-
-# WASM support - Updated to 0.3.3 with wasm_js feature for WebAssembly compatibility
-getrandom = { version = "0.3.3", features = ["wasm_js"] }
-
-# Trading framework dependencies (WASM-compatible)
-rust_decimal = { version = "1.36.0", features = ["serde"] }
-rust_decimal_macros = "1.29.1"
-
-# Trading framework dependencies (WASM-compatible)
-# Note: Removed barter-rs as it's not compatible with WASM/Cloudflare Workers
-# Using custom trading implementation instead
-
+bcrypt = "0.15.0"
 
 

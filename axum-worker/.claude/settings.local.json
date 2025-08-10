@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find:*)",
+      "Bash(cargo check:*)",
+      "Bash(mkdir:*)",
+      "mcp__neon__list_projects",
+      "mcp__neon__get_database_tables",
+      "mcp__neon__describe_table_schema",
+      "mcp__sequential-thinking__sequentialthinking",
+      "mcp__neon__describe_project",
+      "mcp__neon__get_connection_string",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:neon.com)",
+      "WebFetch(domain:api-docs.neon.tech)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:gitlab.com)",
+      "WebFetch(domain:api.github.com)"
+    ],
+    "deny": []
+  }
+}
