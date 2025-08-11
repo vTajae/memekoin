@@ -2,6 +2,7 @@ use leptos::prelude::*;
 use leptos::task::spawn_local;
 use leptos_router::hooks::use_query_map;
 use web_sys::window;
+use tracing::{info, error};
 
 /// OAuth callback page that handles authorization code from Google  
 #[component]
@@ -19,7 +20,7 @@ pub fn OAuthCallbackPage() -> impl IntoView {
 
             // Check for OAuth error
             if let Some(error_msg) = error {
-                log::error!("🔐 OAuth Error: {}", error_msg);
+                error!("🔐 OAuth Error: {}", error_msg);
                 set_callback_status.set(format!("Authentication failed: {}", error_msg));
                 set_is_error.set(true);
                 return;
@@ -29,22 +30,22 @@ pub fn OAuthCallbackPage() -> impl IntoView {
             let (code, state) = match (code, state) {
                 (Some(c), Some(s)) => (c, s),
                 _ => {
-                    log::error!("🔐 Missing OAuth parameters");
+                    error!("🔐 Missing OAuth parameters");
                     set_callback_status.set("Missing required authentication parameters".to_string());
                     set_is_error.set(true);
                     return;
                 }
             };
 
-            log::info!("🔐 Frontend: Processing OAuth callback with code and state");
+            info!("🔐 Frontend: Processing OAuth callback with code and state");
 
             // Handle OAuth callback by submitting authorization code to backend
-            use crate::services::auth_service::AuthService;
+            use crate::services::auth::AuthService;
             let auth_service = AuthService::new();
             
             match auth_service.handle_oauth_callback(code, state).await {
                 Ok(oauth_response) => {
-                    log::info!("🔐 Frontend: OAuth callback successful, user: {}", oauth_response.user_email);
+                    info!("🔐 Frontend: OAuth callback successful, user: {}", oauth_response.user_email);
                     set_callback_status.set("Authentication successful! Redirecting...".to_string());
                     
                     // Redirect to dashboard
@@ -54,7 +55,7 @@ pub fn OAuthCallbackPage() -> impl IntoView {
                     }
                 }
                 Err(e) => {
-                    log::error!("🔐 Frontend: OAuth callback failed: {}", e);
+                    error!("🔐 Frontend: OAuth callback failed: {}", e);
                     set_callback_status.set(format!("Authentication failed: {}", e));
                     set_is_error.set(true);
                 }

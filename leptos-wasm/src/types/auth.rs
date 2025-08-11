@@ -1,4 +1,7 @@
-#![allow(dead_code)]
+
+
+//! Authentication types
+
 use serde::{Deserialize, Serialize};
 
 /// User information from authentication system
@@ -26,39 +29,12 @@ pub struct ApiResponse<T> {
     pub message: Option<String>,
 }
 
-/// API error response structure
-#[derive(Debug, Serialize, Deserialize)]
-pub struct ApiError {
-    pub success: bool,
-    pub error: ErrorDetails,
-}
-
-/// Detailed error information
-#[derive(Debug, Serialize, Deserialize)]
-pub struct ErrorDetails {
-    pub code: String,
-    pub message: String,
-    pub details: Option<String>,
-}
-
 impl AuthState {
     /// Check if user is authenticated
     pub fn is_authenticated(&self) -> bool {
         matches!(self, AuthState::Authenticated(_))
     }
 
-    /// Get user data if authenticated
-    pub fn user(&self) -> Option<&User> {
-        match self {
-            AuthState::Authenticated(user) => Some(user),
-            _ => None,
-        }
-    }
-
-    /// Check if currently loading
-    pub fn is_loading(&self) -> bool {
-        matches!(self, AuthState::Loading)
-    }
 }
 
 /// Google OAuth token response

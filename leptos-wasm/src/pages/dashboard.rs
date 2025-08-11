@@ -2,7 +2,7 @@ use leptos::prelude::*;
 use leptos_router::components::Redirect;
 use crate::components::layout::protected_route::use_protected_route;
 use crate::components::auth::user_profile::{UserProfile, UserName, UserAvatar};
-use crate::components::auth::use_current_user;
+use crate::context::auth::use_current_user;
 
 #[component]
 pub fn DashboardPage() -> impl IntoView {

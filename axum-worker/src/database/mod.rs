@@ -3,7 +3,7 @@
 //! Uses NeonClient for real PostgreSQL connections via worker::Socket
 //! This bypasses the mio limitation by using Cloudflare's network bindings
 
-use crate::{error::AppError, client::neon_client::NeonClient};
+use crate::{utils::error::AppError, client::neon_client::NeonClient};
 use worker::Env;
 
 pub mod test_connection;

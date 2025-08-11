@@ -1,5 +1,5 @@
 use leptos::prelude::*;
-use crate::components::auth::use_auth;
+use crate::context::auth::use_auth;
 
 #[component]
 pub fn LoginButton(

@@ -7,9 +7,6 @@
 //! - Formatting responses according to API standards
 
 // Core OAuth handlers for live data flow
-pub mod auth_improved;      // OAuth login and user management with live data
-// pub mod oauth_callback;     // Disabled due to compilation issues
-pub mod oauth_frontend;     // Frontend OAuth token handling with live data
-
+pub mod auth;      // OAuth login and user management with live data
 // Utility handlers
 pub mod health;             // Health check endpoint

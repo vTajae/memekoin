@@ -7,12 +7,11 @@
 use tower_service::Service;
 use worker::*;
 
-// Re-export modules for external use
 pub mod client;
 pub mod database;
 pub mod dto;
 pub mod entity;
-pub mod error;
+pub mod utils;
 pub mod handler;
 pub mod middleware;
 pub mod repository;

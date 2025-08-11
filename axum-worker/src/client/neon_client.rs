@@ -1,10 +1,8 @@
 use worker::{console_log, Env, Socket, postgres_tls::PassthroughTls};
-use crate::error::AppError;
-use serde_json::{json, Value};
+use crate::utils::error::AppError;
 use tokio_postgres::{Client, Row, config::Host};
 use std::sync::Arc;
 use std::str::FromStr;
-use uuid::Uuid;
 
 
 /// Client for Neon PostgreSQL database operations (WASM-compatible via worker::Socket + "js" feature)
@@ -155,86 +153,6 @@ impl NeonClient {
         }
     }
 
-    /// Get user by email using proper parameterized queries
-    pub async fn get_user_by_email(&self, email: &str) -> Result<Option<Value>, AppError> {
-        let query = "SELECT id, email, first_name, last_name, is_oauth, created_at FROM users WHERE email = $1";
-        
-        match self.execute_query(query, &[&email]).await {
-            Ok(rows) => {
-                if let Some(row) = rows.first() {
-                    let user_data = json!({
-                        "id": row.get::<_, Uuid>(0).to_string(),
-                        "email": row.get::<_, String>(1),
-                        "first_name": row.get::<_, Option<String>>(2),
-                        "last_name": row.get::<_, Option<String>>(3),
-                        "is_oauth": row.get::<_, bool>(4),
-                        "created_at": row.get::<_, chrono::DateTime<chrono::Utc>>(5).to_rfc3339()
-                    });
-                    Ok(Some(user_data))
-                } else {
-                    Ok(None)
-                }
-            }
-            Err(e) => {
-                console_log!("NEON_CLIENT: Failed to get user by email: {:?}", e);
-                Ok(None) // Return None for user not found
-            }
-        }
-    }
-
-    /// Create user using proper parameterized queries
-    pub async fn create_user(&self, email: &str, password_hash: &str) -> Result<Value, AppError> {
-        let query = r#"
-            INSERT INTO users (id, email, password_hash, created_at) 
-            VALUES ($1, $2, $3, NOW()) 
-            RETURNING id, email, first_name, last_name, created_at
-        "#;
-        
-        let user_id = Uuid::new_v4();
-        
-        let rows = self.execute_query(query, &[&user_id, &email, &password_hash]).await?;
-        
-        if let Some(row) = rows.first() {
-            let user_data = json!({
-                "id": row.get::<_, Uuid>(0).to_string(),
-                "email": row.get::<_, String>(1),
-                "first_name": row.get::<_, Option<String>>(2),
-                "last_name": row.get::<_, Option<String>>(3),
-                "created_at": row.get::<_, chrono::DateTime<chrono::Utc>>(4).to_rfc3339()
-            });
-            Ok(user_data)
-        } else {
-            Err(AppError::DatabaseError("User creation returned no data".to_string()))
-        }
-    }
-
-    /// Create user with OAuth data (first_name, last_name from Google OAuth)
-    pub async fn create_oauth_user(&self, email: &str, first_name: Option<&str>, last_name: Option<&str>) -> Result<Value, AppError> {
-        let query = r#"
-            INSERT INTO users (id, email, first_name, last_name, is_oauth, created_at) 
-            VALUES ($1, $2, $3, $4, true, NOW()) 
-            RETURNING id, email, first_name, last_name, is_oauth, created_at
-        "#;
-        
-        let user_id = Uuid::new_v4();
-        
-        let rows = self.execute_query(query, &[&user_id, &email, &first_name, &last_name]).await?;
-        
-        if let Some(row) = rows.first() {
-            let user_data = json!({
-                "id": row.get::<_, Uuid>(0).to_string(),
-                "email": row.get::<_, String>(1),
-                "first_name": row.get::<_, Option<String>>(2),
-                "last_name": row.get::<_, Option<String>>(3),
-                "is_oauth": row.get::<_, bool>(4),
-                "created_at": row.get::<_, chrono::DateTime<chrono::Utc>>(5).to_rfc3339()
-            });
-            Ok(user_data)
-        } else {
-            Err(AppError::DatabaseError("OAuth user creation returned no data".to_string()))
-        }
-    }
-
     /// Execute raw SQL for migrations or admin tasks
     pub async fn execute_raw(&self, sql: &str) -> Result<u64, AppError> {
         console_log!("NEON_CLIENT: Executing raw SQL: {}", sql);
@@ -245,4 +163,5 @@ impl NeonClient {
         console_log!("NEON_CLIENT: Raw SQL executed, affected {} rows", affected_rows);
         Ok(affected_rows)
     }
+
 }

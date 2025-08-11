@@ -5,7 +5,7 @@
 use axum::http::{HeaderMap, HeaderValue};
 use worker::console_log;
 
-use crate::{state::AppState, error::AppError};
+use crate::{state::AppState, utils::error::AppError};
 
 /// Simple session response with headers
 #[derive(Debug, Clone)]

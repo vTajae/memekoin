@@ -1,5 +1,5 @@
 use leptos::prelude::*;
-use crate::components::auth::{use_auth_state, use_current_user};
+use crate::context::auth::{use_auth_state, use_current_user};
 use crate::components::auth::login_button::LoginButton;
 use crate::components::auth::logout_button::LogoutButton;
 use crate::types::auth::AuthState;

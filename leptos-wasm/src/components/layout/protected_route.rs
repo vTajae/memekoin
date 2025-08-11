@@ -1,7 +1,8 @@
 #![allow(dead_code)]
 use leptos::prelude::*;
-use crate::components::auth::use_auth_state;
+use crate::context::auth::use_auth_state;
 use crate::types::auth::AuthState;
+use tracing::{info, warn};
 
 /// Hook that returns authentication state for protected routes
 /// Returns: (should_show_loading, should_redirect_to_login, is_authenticated)
@@ -10,9 +11,18 @@ pub fn use_protected_route() -> Signal<(bool, bool, bool)> {
     
     Signal::derive(move || {
         match auth_state.get() {
-            AuthState::Loading => (true, false, false),
-            AuthState::Authenticated(_) => (false, false, true),
-            AuthState::Unauthenticated => (false, true, false),
+            AuthState::Loading => {
+                info!("ProtectedRoute: Loading auth state");
+                (true, false, false)
+            },
+            AuthState::Authenticated(_) => {
+                info!("ProtectedRoute: Authenticated");
+                (false, false, true)
+            },
+            AuthState::Unauthenticated => {
+                warn!("ProtectedRoute: Unauthenticated - should redirect to login");
+                (false, true, false)
+            },
         }
     })
 }
@@ -24,9 +34,18 @@ pub fn use_unauthenticated_route() -> Signal<(bool, bool, bool)> {
     
     Signal::derive(move || {
         match auth_state.get() {
-            AuthState::Loading => (true, false, false),
-            AuthState::Authenticated(_) => (false, true, false),
-            AuthState::Unauthenticated => (false, false, true),
+            AuthState::Loading => {
+                info!("UnauthenticatedRoute: Loading auth state");
+                (true, false, false)
+            },
+            AuthState::Authenticated(_) => {
+                info!("UnauthenticatedRoute: Already authenticated - should redirect to dashboard");
+                (false, true, false)
+            },
+            AuthState::Unauthenticated => {
+                info!("UnauthenticatedRoute: Unauthenticated - render page");
+                (false, false, true)
+            },
         }
     })
 }

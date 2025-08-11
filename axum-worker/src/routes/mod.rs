@@ -3,14 +3,14 @@ use axum::Router;
 
 use crate::{
     // middleware::cors::CorsLayer, // Phase 1: Commenting out complex middleware
-    state::AppState,
+    state::AppState
 };
 
 pub mod auth;
 pub mod health;
 
 /// Configure all routes by combining modular route configurations
-pub async fn create_router() -> Result<Router<AppState>, crate::error::AppError> {
+pub async fn create_router() -> Result<Router<AppState>, crate::utils::error::AppError> {
     Ok(Router::new()
         // Combine all route modules
         .merge(health::routes())

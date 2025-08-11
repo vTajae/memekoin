@@ -7,7 +7,7 @@ use uuid::Uuid;
 use serde_json;
 
 use crate::{
-    error::AppError,
+    utils::error::AppError,
     database::{Database, FromRow, Row},
 };
 

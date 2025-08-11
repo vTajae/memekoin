@@ -1,5 +1,5 @@
 use crate::components::counter_btn::Button;
-use crate::components::auth::use_auth_state;
+use crate::context::auth::use_auth_state;
 use crate::components::auth::user_profile::UserProfile;
 use crate::types::auth::AuthState;
 use leptos::prelude::*;

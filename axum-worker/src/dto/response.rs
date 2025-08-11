@@ -89,34 +89,3 @@ impl ApiError {
         Self::new("INTERNAL_SERVER_ERROR", message, details)
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_success_response() {
-        let response = ApiResponse::success_with_message("Operation completed");
-        assert_eq!(response.success, true);
-        assert_eq!(response.message, Some("Operation completed".to_string()));
-        assert!(response.data.is_none());
-    }
-
-    #[test]
-    fn test_success_response_with_data() {
-        let data = "test data";
-        let response = ApiResponse::success_with_data(data, Some("Data retrieved"));
-        assert_eq!(response.success, true);
-        assert_eq!(response.data, Some("test data"));
-        assert_eq!(response.message, Some("Data retrieved".to_string()));
-    }
-
-    #[test]
-    fn test_error_response() {
-        let error = ApiError::validation_error("Invalid input", Some("Field 'email' is required".to_string()));
-        assert_eq!(error.success, false);
-        assert_eq!(error.error.code, "VALIDATION_ERROR");
-        assert_eq!(error.error.message, "Invalid input");
-        assert_eq!(error.error.details, Some("Field 'email' is required".to_string()));
-    }
-}

@@ -7,7 +7,7 @@ use serde::{ Serialize};
 
 use crate::{
     state::AppState,
-    error::AppError,
+    utils::error::AppError,
     database::test_connection::validate_connection_string,
 };
 

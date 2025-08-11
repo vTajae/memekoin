@@ -1,8 +1,9 @@
 #![allow(dead_code)]
 use leptos::prelude::*;
 use leptos::task::spawn_local;
-use crate::services::auth_service::AuthService;
+use crate::services::auth::AuthService;
 use crate::types::auth::{AuthState, User};
+use tracing::{info, warn, error};
 
 /// Authentication context for managing global auth state
 #[derive(Clone)]
@@ -37,9 +38,11 @@ pub fn AuthProvider(children: Children) -> impl IntoView {
                 // Try to validate session - cookies are sent automatically by reqwest
                 match auth_service.validate_session().await {
                     Ok(user) => {
+                        info!("AuthProvider: session valid; authenticated user");
                         set_auth_state.set(AuthState::Authenticated(user));
                     }
-                    Err(_) => {
+                    Err(e) => {
+                        warn!("AuthProvider: no valid session ({})", e);
                         // No valid session found
                         set_auth_state.set(AuthState::Unauthenticated);
                     }
@@ -56,7 +59,7 @@ pub fn AuthProvider(children: Children) -> impl IntoView {
             let auth_service = auth_service.clone();
             spawn_local(async move {
                 if let Err(e) = auth_service.initiate_oauth_login() {
-                    log::error!("Failed to initiate OAuth login: {}", e);
+                    error!("AuthProvider: failed to initiate OAuth login: {}", e);
                 }
             });
         })
@@ -74,9 +77,11 @@ pub fn AuthProvider(children: Children) -> impl IntoView {
             spawn_local(async move {
                 // Call logout API
                 if let Err(e) = auth_service.logout().await {
-                    log::warn!("Logout API call failed: {}", e);
+                    warn!("AuthProvider: logout API call failed: {}", e);
+                } else {
+                    info!("AuthProvider: logout succeeded");
                 }
-                
+
                 // Session cookie will be cleared by backend logout endpoint
                 set_auth_state.set(AuthState::Unauthenticated);
             });
@@ -95,9 +100,11 @@ pub fn AuthProvider(children: Children) -> impl IntoView {
             spawn_local(async move {
                 match auth_service.validate_session().await {
                     Ok(user) => {
+                        info!("AuthProvider: refresh_session validated");
                         set_auth_state.set(AuthState::Authenticated(user));
                     }
-                    Err(_) => {
+                    Err(e) => {
+                        warn!("AuthProvider: refresh_session invalid: {}", e);
                         // Session is invalid
                         set_auth_state.set(AuthState::Unauthenticated);
                     }

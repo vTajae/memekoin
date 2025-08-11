@@ -13,6 +13,8 @@ leptos_router = { version = "0.8" }
 console_log = "1"
 log = "0.4"
 console_error_panic_hook = "0.1"
+tracing = { version = "0.1", default-features = false, features = ["attributes"] }
+tracing-wasm = "0.2"
 
 # HTTP client and serialization
 reqwest = { version = "0.12", features = ["json"], default-features = false }

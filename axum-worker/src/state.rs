@@ -4,7 +4,7 @@ use std::sync::{Arc, OnceLock};
 use worker::Env;
 
 use crate::{
-    error::AppError,
+    utils::error::AppError,
     database::Database,
     repository::{
         user::UserRepository,

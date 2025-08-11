@@ -6,7 +6,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    error::AppError,
+    utils::error::AppError,
     database::{Database, FromRow},
 };
 use crate::database::Row;

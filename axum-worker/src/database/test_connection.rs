@@ -4,7 +4,7 @@
 //! and identify connection issues in the Cloudflare Workers environment.
 
 use worker::{console_log, Env};
-use crate::{error::AppError, client::{neon_client::NeonClient, neon_client_v2::NeonClientV2}};
+use crate::{utils::error::AppError, client::neon_client::NeonClient};
 
 /// Test database connection with detailed logging
 pub async fn test_database_connection_detailed(env: &Env) -> Result<(), AppError> {
@@ -49,24 +49,24 @@ pub async fn test_database_connection_detailed(env: &Env) -> Result<(), AppError
     console_log!("Port: {}", parsed_url.port().unwrap_or(5432));
     console_log!("Database: {}", parsed_url.path().trim_start_matches('/'));
     
-    // Step 3: Test NeonClientV2 creation (improved version)
-    console_log!("Step 3: Testing NeonClientV2 creation (improved connection handling)...");
-    let client_v2 = NeonClientV2::new(database_url.clone()).await
+    // Step 3: Test NeonClient creation (improved version)
+    console_log!("Step 3: Testing NeonClient creation (improved connection handling)...");
+    let client_v2 = NeonClient::new(database_url.clone()).await
         .map_err(|e| {
-            console_log!("❌ NeonClientV2 creation failed: {:?}", e);
+            console_log!("❌ NeonClient creation failed: {:?}", e);
             // Don't return error, try original client
             e
         });
     
     match client_v2 {
         Ok(client) => {
-            console_log!("✅ NeonClientV2 created successfully");
+            console_log!("✅ NeonClient created successfully");
             
             // Step 4: Test actual connection
             console_log!("Step 4: Testing database connectivity with V2...");
             match client.test_connection().await {
                 Ok(_) => {
-                    console_log!("✅ Database connection successful with NeonClientV2!");
+                    console_log!("✅ Database connection successful with NeonClient!");
                     console_log!("=== CONNECTION DIAGNOSTIC COMPLETE (V2 SUCCESS) ===");
                     return Ok(());
                 }
@@ -76,7 +76,7 @@ pub async fn test_database_connection_detailed(env: &Env) -> Result<(), AppError
             }
         }
         Err(e) => {
-            console_log!("❌ NeonClientV2 failed, trying original NeonClient: {:?}", e);
+            console_log!("❌ NeonClient failed, trying original NeonClient: {:?}", e);
         }
     }
     
