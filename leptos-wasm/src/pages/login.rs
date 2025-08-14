@@ -2,6 +2,7 @@ use leptos::prelude::*;
 use leptos_router::components::Redirect;
 use crate::components::auth::login_button::LoginButton;
 use crate::components::layout::protected_route::use_unauthenticated_route;
+use crate::components::layout::page_template::PageTemplate;
 
 #[component]
 pub fn LoginPage() -> impl IntoView {
@@ -19,7 +20,8 @@ pub fn LoginPage() -> impl IntoView {
                     view! { <Redirect path="/dashboard" /> }.into_any()
                 } else if unauthenticated {
                     view! {
-            <div class="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+            <PageTemplate title="Login".to_string()>
+            <div class="flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
                 <div class="max-w-md w-full space-y-8">
                     <div class="text-center">
                         <div class="mx-auto h-12 w-12 flex items-center justify-center rounded-full bg-blue-100">
@@ -113,6 +115,7 @@ pub fn LoginPage() -> impl IntoView {
                     </div>
                 </div>
             </div>
+            </PageTemplate>
                     }.into_any()
                 } else {
                     view! { <div></div> }.into_any()

@@ -73,6 +73,15 @@ pub struct UserSessionData {
     pub token_expires_at: Option<DateTime<Utc>>,
     pub user_agent: Option<String>,
     pub ip_address: Option<String>,
+    // Axiom integration fields
+    #[serde(default)]
+    pub axiom_access_token: Option<String>,
+    #[serde(default)]
+    pub axiom_refresh_token: Option<String>,
+    #[serde(default)]
+    pub axiom_user_id: Option<String>,
+    #[serde(default)]
+    pub axiom_connected_at: Option<DateTime<Utc>>,
 }
 
 /// Database-backed session repository
@@ -194,6 +203,27 @@ impl SessionRepository {
         }
     }
 
+    /// Find latest (non-expired) session for a given user_email (case-insensitive)
+    pub async fn find_latest_by_user_email(&self, user_email: &str) -> Result<Option<(Session, UserSessionData)>, AppError> {
+        // Use ILIKE for case-insensitive match if available
+        let query = r#"
+            SELECT id, data, expires FROM account_sessions
+            WHERE (data::json->>'user_email') ILIKE $1
+              AND expires > $2
+            ORDER BY expires DESC
+            LIMIT 1
+        "#;
+        let now = chrono::Utc::now().timestamp();
+        let email_param = user_email;
+        let params: &[&(dyn tokio_postgres::types::ToSql + Sync)] = &[&email_param, &now];
+        if let Some(row) = self.database.query_opt(query, params).await? {
+            let session = Session::from_row(row)?;
+            let user_data: UserSessionData = serde_json::from_str(&session.data)
+                .map_err(|e| AppError::SerializationError(format!("Failed to deserialize session data: {}", e)))?;
+            Ok(Some((session, user_data)))
+        } else { Ok(None) }
+    }
+
     /// Update user session data
     pub async fn update_user_session(
         &self,
@@ -221,6 +251,10 @@ impl SessionRepository {
             token_expires_at: None,
             user_agent: None,
             ip_address: None,
+            axiom_access_token: None,
+            axiom_refresh_token: None,
+            axiom_user_id: None,
+            axiom_connected_at: None,
         };
         
         self.create_user_session(session_id.clone(), user_data, ttl_seconds).await?;

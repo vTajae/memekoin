@@ -10,3 +10,4 @@
 pub mod auth;      // OAuth login and user management with live data
 // Utility handlers
 pub mod health;             // Health check endpoint
+pub mod axiom;         // Axiom Trade authentication with Gmail 2FA

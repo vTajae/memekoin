@@ -2,6 +2,9 @@
 
 This document captures the architecture decision for dependency management, layering, and environment configuration.
 
+**Last Updated**: December 11, 2024  
+**Status**: ✅ IMPLEMENTED - Clean Architecture with Repository Pattern
+
 ## Goal
 Modular, testable, and secure application architecture with clean data flow:
 
@@ -23,15 +26,36 @@ Route → Handler → Service → Repository → Database Client
 - Prevents tight coupling between AppState and service lifecycles (seen in small examples like rusty-worker).
 
 ## Implementation Highlights
+
+### Current Implementation (December 2024)
+- **Clean Architecture**: Complete separation of concerns with Handler → Service → Repository → Database layers
+- **AuthRepository**: Centralized repository for all authentication-related database operations
+  - User management (create, find, update)
+  - Linked accounts for OAuth providers
+  - Session storage and validation
+  - Token management (access and refresh tokens)
+- **AuthService**: Orchestrates authentication business logic
+  - OAuth flow handling with Google
+  - Session lifecycle management
+  - Token validation and refresh
+- **SessionService**: Manages user sessions
+  - Session creation and validation
+  - Cookie management
+  - Session cleanup and expiration
+
+### Repository Pattern Benefits
+- **Testability**: Services can be tested with mock repositories
+- **Maintainability**: Database changes isolated to repository layer
+- **Scalability**: Easy to add new features without affecting existing code
+- **Type Safety**: Strongly typed entities and DTOs throughout
+
+### AppState Design
 - Added `Database::from_url(&str)`; AppState resolves URL and constructs the DB client.
-- AppState now uses `OnceLock<Arc<Repo>>` and exposes:
-  - `fn user_repo(&self) -> Arc<UserRepository>`
-  - `fn session_repo(&self) -> Arc<SessionRepository>`
-- Optional helpers (not cached):
-  - `fn make_session_service(&self) -> SessionService`
-  - `fn make_oauth_service(&self) -> OAuthService`
-  - `fn make_simplified_oauth_service(&self) -> SimplifiedOAuthService`
-- Handlers/middleware call the repo getters or construct services on demand.
+- AppState stores only database connection and configuration
+- Services created on-demand by handlers:
+  - `AuthService::new(database.clone())`
+  - `SessionService::new(database.clone())`
+- Repositories created within services as needed
 
 ## Security
 - Secrets preferred over plain env vars for DB URLs.
@@ -39,13 +63,47 @@ Route → Handler → Service → Repository → Database Client
 - Avoid logging sensitive values; truncate when necessary.
 
 ## Usage Examples
-- In a handler:
-  - `let users = state.user_repo();`
-  - `let sessions = state.session_repo();`
-  - `let svc = state.make_session_service();`
-- OAuth:
-  - `let oauth = state.make_oauth_service();`
-  - `let simple_oauth = state.make_simplified_oauth_service();`
+
+### Current Implementation Pattern
+```rust
+// In a handler - Clean Architecture flow
+pub async fn handle_oauth_token(
+    State(state): State<AppState>,
+    Json(data): Json<FrontendOAuthSubmission>,
+) -> Result<impl IntoResponse, AppError> {
+    // Handler creates service
+    let auth_service = AuthService::new(state.database.clone());
+    
+    // Service handles business logic
+    let response = auth_service.handle_frontend_oauth(data).await?;
+    
+    // Return response
+    Ok(Json(response))
+}
+
+// In AuthService - Service uses Repository
+impl AuthService {
+    pub fn new(database: Arc<Database>) -> Self {
+        Self {
+            auth_repository: AuthRepository::new(database),
+        }
+    }
+    
+    pub async fn handle_frontend_oauth(&self, data: FrontendOAuthSubmission) -> Result<OAuthResponse, AppError> {
+        // Service orchestrates business logic
+        // Repository handles database operations
+        let user = self.auth_repository.create_or_find_user(...).await?;
+        let session = self.auth_repository.create_session(...).await?;
+        // ...
+    }
+}
+```
+
+### Layer Responsibilities
+- **Handler**: HTTP concerns, request/response mapping
+- **Service**: Business logic, orchestration, validation
+- **Repository**: Database operations, query building
+- **Database**: Connection management, query execution
 
 ## References
 - Java (Controller → Service → Repository): https://github.com/vTajae/JavaFullStack

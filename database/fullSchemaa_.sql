@@ -101,8 +101,9 @@ CREATE TABLE IF NOT EXISTS tokens (
     CHECK ( (user_id IS NOT NULL) <> (linked_account_id IS NOT NULL) )
 );
 
+-- Pivot table: many scopes per token
 CREATE TABLE IF NOT EXISTS token_scopes (
-    token_id UUID REFERENCES tokens(id) ON DELETE CASCADE,
+    token_id UUID NOT NULL REFERENCES tokens(id) ON DELETE CASCADE,
     scope VARCHAR(100) NOT NULL,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     PRIMARY KEY (token_id, scope)
@@ -293,6 +294,28 @@ CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_tokens_expires_at ON tokens(expires_
 CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS ux_tokens_value_hash ON tokens(value_hash);
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_audit_log_user_event ON audit_log(user_id, event);
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_audit_log_created_at ON audit_log(created_at);
+-- Ensure only one active OAuth access (type_id=2) and one refresh (type_id=3) token per linked account.
+-- Implemented as a PARTIAL UNIQUE INDEX (cannot be a named constraint in Postgres, so
+-- application code must use: ON CONFLICT (linked_account_id, type_id) ... (NOT ON CONSTRAINT ...)
+-- This works because inserts for type_id IN (2,3) satisfy the predicate and will see conflicts.
+-- Session tokens (type_id=1, user scoped) and any future token types are unaffected.
+-- IMPORTANT CHANGE (2025-08-13): Replaced prior PARTIAL UNIQUE INDEX (predicate type_id IN (2,3))
+-- with a FULL UNIQUE INDEX on (linked_account_id, type_id). Reason: Postgres ON CONFLICT index
+-- inference for "ON CONFLICT (linked_account_id, type_id)" requires a matching unique index
+-- (partial indexes can be ignored if predicate inference fails in some environments/tools), which
+-- led to runtime error: "there is no unique or exclusion constraint matching the ON CONFLICT specification".
+-- A full unique index keeps desired semantics for account-scoped tokens: one row per token type per
+-- linked account (NULL linked_account_id values for user-scoped tokens do NOT conflict because NULLs
+-- are treated as distinct). This still permits multiple user-scoped session tokens (type_id=1) since
+-- those rows have linked_account_id NULL.
+-- If historical versions per type are later needed, drop this unique index and implement a soft
+-- versioning strategy (e.g., add created_at to uniqueness or archive old rows before inserting new).
+CREATE UNIQUE INDEX ux_tokens_linked_account_type ON tokens(linked_account_id, type_id);
+
+-- NOTE: If future requirements necessitate multiple tokens of the same type per linked account
+-- (e.g., rotating access tokens), replace this with a trigger that enforces max-active = 1 while
+-- allowing archival, or include a status column and partial uniqueness on (linked_account_id, type_id)
+-- WHERE status = 'active'.
 
 -- Additional helpful indexes
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_linked_accounts_active ON linked_accounts(user_id) WHERE is_active;
@@ -314,3 +337,12 @@ COMMENT ON VIEW user_accounts_view IS 'Users with their linked accounts and toke
 COMMENT ON COLUMN linked_accounts.provider_user_id IS 'External provider unique ID (email for local, user_id for OAuth)';
 COMMENT ON COLUMN tokens.value IS 'Encrypted token value - handles OAuth tokens, API keys, sessions';
 COMMENT ON COLUMN token_types.expiration IS 'Default expiration interval for this token type';
+
+-- Session storage table expected by application (simple key/value with expiry)
+CREATE TABLE IF NOT EXISTS account_sessions (
+    id TEXT PRIMARY KEY,
+    data TEXT NOT NULL,
+    expires BIGINT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_account_sessions_expires ON account_sessions(expires);

@@ -19,8 +19,8 @@ pub mod routes;
 pub mod service;
 pub mod state;
 
-use tracing_subscriber::{fmt::format::Pretty, prelude::*};
-use tracing_web::{performance_layer, MakeConsoleWriter};
+// use tracing_subscriber::{fmt::format::Pretty, prelude::*}; // Unused (tracing init disabled)
+// use tracing_web::{performance_layer, MakeConsoleWriter};   // Unused (tracing init disabled)
 
 use crate::{
     middleware::session::simple_session_setup,
@@ -31,18 +31,18 @@ use crate::{
 
 #[event(start)]
 fn start() {
-    let fmt_layer = tracing_subscriber::fmt::layer()
-        .json()
-        .with_ansi(false) // Only partially supported across JavaScript runtimes
-        .without_time() // Disable timestamps - SystemTime not available in WASM
-        .with_writer(MakeConsoleWriter); // write events to the console
+    // let fmt_layer = tracing_subscriber::fmt::layer()
+    //     .json()
+    //     .with_ansi(false) // Only partially supported across JavaScript runtimes
+    //     .without_time() // Disable timestamps - SystemTime not available in WASM
+    //     .with_writer(MakeConsoleWriter); // write events to the console
 
-    let perf_layer = performance_layer().with_details_from_fields(Pretty::default());
+    // let perf_layer = performance_layer().with_details_from_fields(Pretty::default());
 
-    tracing_subscriber::registry()
-        .with(fmt_layer)
-        .with(perf_layer)
-        .init();
+    // tracing_subscriber::registry()
+    //     .with(fmt_layer)
+    //     .with(perf_layer)
+    //     .init();
 }
 
 

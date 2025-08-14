@@ -23,7 +23,9 @@ impl Default for CorsLayer {
             allow_origins: vec![
                 "http://localhost:8787".to_string(),
                 "http://127.0.0.1:3000".to_string(),
+                "http://127.0.0.1:3001".to_string(), // Frontend dev server
                 "http://localhost:3000".to_string(),
+                "http://localhost:3001".to_string(), // Frontend dev server
                 "https://your-domain.com".to_string(),
             ],
             allow_methods: vec![

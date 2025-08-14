@@ -1,0 +1,1 @@
+This folder contains the built output assets for the worker "www-example-com-api" generated at 2025-08-14T00:40:02.153Z.

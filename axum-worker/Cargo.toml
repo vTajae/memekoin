@@ -66,6 +66,9 @@ serde_json = "1.0.142"
 # Base64 encoding for OAuth PKCE
  base64 = "0.22.1"
 
+# Regex for pattern matching
+regex = "1.11.0"
+
 # URL parsing and validation
  url = "2.5.4"
 
@@ -83,9 +86,14 @@ web-sys = { version = "0.3", features = ["Request", "RequestInit", "RequestMode"
 js-sys = "0.3"
 serde-wasm-bindgen = "0.6"
 
+# HTTP client for WASM
+reqwest = { version = "0.12", default-features = false, features = ["json"] }
+
 # Cryptographic dependencies (WASM-compatible)
 rand = { version = "0.8.5", features = ["getrandom"] }
 sha2 = "0.10.8"
 bcrypt = "0.15.0"
+pbkdf2 = "0.12.2"
+hmac = "0.12.1"
 
 

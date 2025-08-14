@@ -35,11 +35,13 @@ Sample Response From Token Exchange:
   "refresh_token": "1//xEoDL4iW3cxlI7yDbSRFYNG01kVKM2C-259HOF2aQbI"
 }
 
+=========   Google GMail API   ==============
 
-For the gmail api consider is information: 
+https://developers.google.com/workspace/gmail/api/guides/filtering
 
+https://developers.google.com/workspace/gmail/api/reference/rest/v1/users.messages/list
 
-
+The sign in scope grants google API access, so the user should be able to access their emails.
 
 ===== Front End ====
 

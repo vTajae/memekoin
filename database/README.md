@@ -1,6 +1,6 @@
 
 Useful scripts:
-docker exec local_postgres_db psql -U leptos_user -d postgres -c "DROP DATABASE IF EXISTS leptos_db; CREATE DATABASE leptos_db;"
+docker exec local_postgres_db psql -U leptos_user -d postgres -c "DROP DATABASE IF EXISTS leptos_db; CREATE DATABASE leptos_db;" -f
 
 
 Refull: 

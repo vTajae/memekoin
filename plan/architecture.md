@@ -14,7 +14,7 @@ worker_runtime: worker 0.6.1
 session_management:
   - tower-sessions 0.14.0
   - tower-cookies 0.11.0
-database: tokio-postgres (WASM-compatible)
+database: PostgreSQL (Neon) via tokio-postgres
 authentication: Google OAuth 2.0 + PKCE
 error_handling: Comprehensive AppError system
 logging: tracing + tracing-wasm
@@ -43,51 +43,69 @@ domain_management: Cloudflare DNS
 
 ## System Components
 
-### 1. Backend Architecture (Axum Worker)
+### 1. Backend Architecture (Axum Worker) - CLEAN ARCHITECTURE
 
+#### Layered Architecture Pattern
+```
+Handler Layer → Service Layer → Repository Layer → Database
+```
+
+#### Directory Structure
 ```
 src/
 ├── lib.rs              # WASM entry point + fetch handler
-├── state.rs            # Dependency injection container
-├── error.rs            # Centralized error handling
+├── state.rs            # Application state & dependency injection
+├── database/           # Database connection management
+│   ├── mod.rs          # PostgreSQL connection pool
+│   └── test_connection.rs
 ├── routes/             # Route definitions
 │   ├── mod.rs          # Master router configuration
 │   ├── auth.rs         # Authentication routes
-│   ├── health.rs       # Health check routes
-│   └── gmail.rs        # Future Gmail API routes
-├── handler/            # Request handlers
+│   └── health.rs       # Health check routes
+├── handler/            # HTTP Request handlers (Controller layer)
 │   ├── mod.rs
-│   ├── auth.rs         # OAuth flow handlers
-│   ├── health.rs       # Health check handlers
-│   └── user.rs         # User management handlers
+│   ├── auth.rs         # OAuth flow handlers (uses AuthService)
+│   └── health.rs       # Health check handlers
 ├── service/            # Business logic layer
 │   ├── mod.rs
-│   ├── auth.rs         # Authentication service
-│   ├── oauth.rs        # OAuth integration service
-│   ├── session.rs      # Session management service
-│   └── user.rs         # User management service
-├── repository/         # Data access layer
+│   ├── auth.rs         # ✅ Authentication orchestration service
+│   ├── oauth.rs        # OAuth integration service with PKCE
+│   └── session.rs      # Session management service
+├── repository/         # Data access layer (Database operations)
 │   ├── mod.rs
+│   ├── auth.rs         # ✅ Authentication repository (NEW)
 │   ├── user.rs         # User data repository
 │   └── session.rs      # Session storage repository
 ├── middleware/         # Cross-cutting concerns
 │   ├── mod.rs
 │   ├── auth.rs         # Authentication middleware
 │   ├── cors.rs         # CORS handling
-│   └── logging.rs      # Request logging
-├── entity/             # Data models
+│   └── session.rs      # Session middleware
+├── entity/             # Domain entities
 │   ├── mod.rs
-│   ├── user.rs         # User entity
-│   ├── session.rs      # Session entity
-│   └── oauth.rs        # OAuth token entity
-├── dto/                # API contracts
+│   ├── users.rs        # User entity
+│   ├── user_session.rs # Session entity
+│   ├── tokens.rs       # Token entities
+│   └── providers.rs    # OAuth provider entities
+├── dto/                # Data Transfer Objects
 │   ├── mod.rs
 │   ├── auth.rs         # Authentication DTOs
-│   ├── user.rs         # User DTOs
+│   ├── oauth.rs        # OAuth DTOs
 │   └── response.rs     # Standard API responses
+├── utils/              # Utility functions
+│   ├── mod.rs
+│   └── error.rs        # Centralized error handling
 └── client/             # External service clients
-    └── mod.rs
+    ├── mod.rs
+    └── neon_client.rs  # PostgreSQL client
 ```
+
+#### Clean Architecture Benefits
+- **Separation of Concerns**: Each layer has specific responsibilities
+- **Testability**: Services can be tested independently of database
+- **Maintainability**: Database changes only affect repositories
+- **Scalability**: Easy to add new features without affecting existing code
+- **Dependency Inversion**: Higher layers don't depend on lower layer implementations
 
 ### 2. Frontend Architecture (Leptos)
 

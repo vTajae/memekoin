@@ -465,20 +465,26 @@ interface LabelsResponse {
 
 ## Testing Examples
 
-### Authentication Flow Test
+### Authentication Flow Test (Current Implementation)
 ```bash
-# 1. Initiate OAuth login
-curl -X GET "https://your-worker.workers.dev/api/auth/oauth/login" \
+# 1. Frontend completes OAuth flow with Google and submits tokens
+curl -X POST "https://your-worker.workers.dev/api/auth/oauth/token" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "access_token": "ya29.a0AfH6SMB...",
+    "id_token": "eyJhbGciOiJSUzI1NiIsImtpZCI6...",
+    "expires_in": 3599,
+    "token_type": "Bearer",
+    "scope": "openid email profile"
+  }' \
   -i
 
-# 2. Complete OAuth flow (manual step in browser)
-
-# 3. Check authenticated user
+# 2. Check authenticated user (using session cookie from step 1)
 curl -X GET "https://your-worker.workers.dev/api/auth/user" \
   -H "Cookie: session_id=your-session-id" \
   -i
 
-# 4. Logout
+# 3. Logout
 curl -X POST "https://your-worker.workers.dev/api/auth/logout" \
   -H "Cookie: session_id=your-session-id" \
   -i

@@ -69,6 +69,8 @@ pub struct OAuthTokenSubmission {
     pub refresh_token: Option<String>,
     pub expires_in: i64,
     pub state: String,
+    // Space-delimited scopes string from Google token response
+    pub scope: Option<String>,
     pub user_info: GoogleUserInfo,
     pub code: Option<String>, // Authorization code from OAuth callback
 }

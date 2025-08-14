@@ -39,6 +39,8 @@ pub enum AppError {
     InternalServerError(String),
     /// Not found errors
     NotFound(String),
+    /// Bad request errors
+    BadRequest(String),
 }
 
 /// Authentication-specific errors
@@ -76,6 +78,7 @@ impl fmt::Display for AppError {
             AppError::ValidationError(msg) => write!(f, "Validation error: {}", msg),
             AppError::InternalServerError(msg) => write!(f, "Internal server error: {}", msg),
             AppError::NotFound(msg) => write!(f, "Not found: {}", msg),
+            AppError::BadRequest(msg) => write!(f, "Bad request: {}", msg),
         }
     }
 }
@@ -116,6 +119,7 @@ impl AppError {
             AppError::SerializationError(_) => "SERIALIZATION_ERROR",
             AppError::AuthenticationError(_) => "AUTH_ERROR",
             AppError::NotFound(_) => "RESOURCE_NOT_FOUND",
+            AppError::BadRequest(_) => "BAD_REQUEST",
         }
     }
 
@@ -166,6 +170,9 @@ impl AppError {
             }
             AppError::NotFound(_) => {
                 (StatusCode::NOT_FOUND, "Resource not found")
+            }
+            AppError::BadRequest(_) => {
+                (StatusCode::BAD_REQUEST, "Bad request")
             }
         }
     }

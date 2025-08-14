@@ -1,6 +1,6 @@
 use crate::components::counter_btn::Button;
 use crate::context::auth::use_auth_state;
-use crate::components::auth::user_profile::UserProfile;
+use crate::components::layout::page_template::PageTemplate;
 use crate::types::auth::AuthState;
 use leptos::prelude::*;
 use leptos_router::{hooks::use_navigate, NavigateOptions};
@@ -12,22 +12,7 @@ pub fn Home() -> impl IntoView {
     let navigate = use_navigate();
 
     view! {
-        <div class="min-h-screen bg-gray-50">
-            // Header
-            <header class="bg-white shadow-sm">
-                <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                    <div class="flex justify-between items-center h-16">
-                        <div class="flex items-center">
-                            <h1 class="text-xl font-semibold text-gray-900">
-                                "Leptos Cloudflare Template"
-                            </h1>
-                        </div>
-                        <div class="flex items-center space-x-4">
-                            <UserProfile />
-                        </div>
-                    </div>
-                </div>
-            </header>
+        <PageTemplate>
 
             <ErrorBoundary fallback=|errors| {
                 view! {
@@ -50,8 +35,7 @@ pub fn Home() -> impl IntoView {
                     </div>
                 }
             }>
-                // Main content
-                <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+                <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
                     <div class="text-center">
                         <picture class="flex justify-center mb-8">
                             <source
@@ -157,8 +141,8 @@ pub fn Home() -> impl IntoView {
                             </div>
                         </div>
                     </div>
-                </main>
+                </div>
             </ErrorBoundary>
-        </div>
+        </PageTemplate>
     }
 }

@@ -167,4 +167,57 @@ impl SimplifiedOAuthService {
         console_log!("🔐 SIMPLE: Token exchange form data prepared with PKCE");
         Ok(form_data)
     }
+
+    /// Refresh an expired access token using a refresh token
+    pub async fn refresh_access_token(&self, refresh_token: &str) -> Result<(String, i64), AppError> {
+        console_log!("🔄 Starting token refresh");
+        
+        let form_data = format!(
+            "client_id={}&client_secret={}&refresh_token={}&grant_type=refresh_token",
+            urlencoding::encode(&self.client_id),
+            urlencoding::encode(&self.client_secret),
+            urlencoding::encode(refresh_token)
+        );
+
+        // Create the fetch request
+        let request = worker::Request::new_with_init(
+            "https://oauth2.googleapis.com/token",
+            worker::RequestInit::new()
+                .with_method(worker::Method::Post)
+                .with_headers(worker::Headers::from_iter([
+                    ("Content-Type", "application/x-www-form-urlencoded"),
+                    ("Accept", "application/json"),
+                ]))
+                .with_body(Some(worker::wasm_bindgen::JsValue::from_str(&form_data))),
+        )?;
+
+        // Make the request
+        let mut response = worker::Fetch::Request(request).send().await?;
+        
+        if response.status_code() != 200 {
+            let error_text = response.text().await.unwrap_or_else(|_| "Unknown error".to_string());
+            console_log!("❌ Token refresh failed: Status {}, Body: {}", response.status_code(), error_text);
+            return Err(AppError::AuthenticationError(format!("Token refresh failed: {}", error_text)));
+        }
+
+        let response_text = response.text().await?;
+        console_log!("🔄 Token refresh response: {}", response_text);
+
+        // Parse the JSON response
+        let json: serde_json::Value = serde_json::from_str(&response_text)
+            .map_err(|e| AppError::AuthenticationError(format!("Failed to parse token response: {}", e)))?;
+
+        // Extract access_token and expires_in
+        let access_token = json["access_token"]
+            .as_str()
+            .ok_or_else(|| AppError::AuthenticationError("Missing access_token in refresh response".to_string()))?
+            .to_string();
+
+        let expires_in = json["expires_in"]
+            .as_i64()
+            .ok_or_else(|| AppError::AuthenticationError("Missing expires_in in refresh response".to_string()))?;
+
+        console_log!("✅ Token refreshed successfully, expires in {} seconds", expires_in);
+        Ok((access_token, expires_in))
+    }
 }

@@ -117,6 +117,7 @@ impl AuthService {
             refresh_token: token_response.refresh_token,
             expires_in: token_response.expires_in,
             state,
+            scope: token_response.scope.clone(),
             code: Some(code), // Still include the code for backend verification
             user_info, // Real user info from Google
         };
@@ -249,6 +250,26 @@ impl AuthService {
             }
         }
     }
+
+    // Add Axiom Trade Login 
+    /// Initiate OAuth login by redirecting to the OAuth provider
+    #[tracing::instrument(name = "auth.initiate_oauth_login", skip(self))]
+    pub fn initiate_axum_login(&self) -> Result<(), String> {
+        let window = window().ok_or("Failed to get window object")?;
+        
+        // Redirect to backend OAuth endpoint - wrangler dev server on port 8787
+        let auth_url = "http://127.0.0.1:8787/api/auth/axiom/login";
+        
+        window
+            .location()
+            .set_href(auth_url)
+            .map_err(|_| "Failed to redirect to OAuth login".to_string())?;
+
+        Ok(())
+    }
+
+
+
 }
 
 impl Default for AuthService {
