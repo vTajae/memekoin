@@ -3,8 +3,8 @@ use wasm_bindgen::JsValue;
 use worker::*;
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
 use sha2::Sha256;
-use pbkdf2::pbkdf2;
-use hmac::Hmac;
+use pbkdf2::pbkdf2_hmac;
+// hmac is brought via pbkdf2_hmac generic; no direct type usage here
 
 #[derive(Debug, Clone)]
 pub struct AxiomService {
@@ -107,33 +107,18 @@ impl AxiomService {
     }
 
     /// Encode password for transmission.
-    /// According to the upstream Python reference (AuthManager.get_b64_password),
-    /// the password should be SHA256 hashed (ISO-8859-1 bytes, equivalent to raw bytes for ASCII)
-    /// and then Base64 encoded (padding retained). This produces a 44-char string for typical inputs.
-    /// We log length to help verify. If future requirements need raw Base64(password), a secondary
-    /// function can be introduced and toggled via configuration.
+    /// Mirrors axiomtrade-rs `utils::password::hashpassword` implementation:
+    /// PBKDF2-HMAC-SHA256 over raw password bytes with fixed salt and 600_000 iterations,
+    /// then base64 encode the 32-byte derived key.
     pub fn hash_password(password: &str) -> String {
-        // PBKDF2-HMAC-SHA256 with fixed salt & iterations per new reference
-        // salt bytes from Python snippet
+        // Fixed parameters from axiomtrade-rs
         const SALT: [u8; 32] = [217, 3, 161, 123, 53, 200, 206, 36, 143, 2, 220, 252, 240, 109, 204, 23, 217, 174, 79, 158, 18, 76, 149, 117, 73, 40, 207, 77, 34, 194, 196, 163];
         const ITERATIONS: u32 = 600_000;
-        worker::console_log!("🔐 AXIOM DEBUG: raw password='{}' (PBKDF2)", password);
+        worker::console_log!("🔐 AXIOM DEBUG: hashing password with PBKDF2-HMAC-SHA256 (iters={}, salt_len={})", ITERATIONS, SALT.len());
 
-        // ISO-8859-1 strict encoding
-        let mut latin1: Vec<u8> = Vec::with_capacity(password.len());
-        for ch in password.chars() {
-            let cp = ch as u32;
-            if cp <= 0xFF { latin1.push(cp as u8); } else {
-                worker::console_log!("🔐 AXIOM ERROR: password contains non ISO-8859-1 character U+{:04X}; abort PBKDF2", cp);
-                return String::new();
-            }
-        }
-
-    let mut derived = [0u8; 32];
-        pbkdf2::<Hmac<Sha256>>(&latin1, &SALT, ITERATIONS, &mut derived)
-            .expect("PBKDF2 derivation failed");
+        let mut derived = [0u8; 32];
+        pbkdf2_hmac::<Sha256>(password.as_bytes(), &SALT, ITERATIONS, &mut derived);
         let b64 = BASE64_STANDARD.encode(derived);
-        worker::console_log!("🔐 AXIOM: PBKDF2-HMAC-SHA256 derived key -> base64='{}' len={} iterations={} salt_len={}", b64, b64.len(), ITERATIONS, SALT.len());
         b64
     }
 
@@ -170,8 +155,16 @@ impl AxiomService {
 
     /// Step 1: Login with email and password to get OTP JWT token (or cookie) for OTP verification
     pub async fn login_step1(&mut self, email: &str, password: &str) -> Result<LoginStep1Response> {
-        // Endpoints observed in Python client: /login-password-v2 on api6, others as fallback
-        let mut candidates = vec![("https://api6.axiom.trade", "/login-password-v2")];
+        // Prefer the comprehensive set of API endpoints from axiomtrade-rs
+        let mut candidates = vec![
+            ("https://api2.axiom.trade", "/login-password-v2"),
+            ("https://api3.axiom.trade", "/login-password-v2"),
+            ("https://api6.axiom.trade", "/login-password-v2"),
+            ("https://api7.axiom.trade", "/login-password-v2"),
+            ("https://api8.axiom.trade", "/login-password-v2"),
+            ("https://api9.axiom.trade", "/login-password-v2"),
+            ("https://api10.axiom.trade", "/login-password-v2"),
+        ];
         // Randomize order to distribute load and reduce rate limit triggers on a single host
         #[allow(unused)]
         {
@@ -188,7 +181,7 @@ impl AxiomService {
     let encoded_pw = Self::hash_password(password);
     let mut last_err: Option<String> = None;
         let headers_base = self.create_headers()?;
-        headers_base.set("Cookie", "auth-otp-login-token=").ok();
+    headers_base.set("Cookie", "auth-otp-login-token=").ok();
 
     worker::console_log!("🔐 AXIOM DEBUG: starting step1 for email='{}' raw_password='{}'", clean_email, password);
 
@@ -277,9 +270,13 @@ impl AxiomService {
         base64_password: &str,
     ) -> Result<LoginStep2Response> {
         let candidates = vec![
-            ("https://api10.axiom.trade", "/login-otp"),
+            ("https://api2.axiom.trade", "/login-otp"),
+            ("https://api3.axiom.trade", "/login-otp"),
             ("https://api6.axiom.trade", "/login-otp"),
-            ("https://api.axiom.trade", "/login-otp"),
+            ("https://api7.axiom.trade", "/login-otp"),
+            ("https://api8.axiom.trade", "/login-otp"),
+            ("https://api9.axiom.trade", "/login-otp"),
+            ("https://api10.axiom.trade", "/login-otp"),
         ];
         // Choose a single random endpoint to avoid noisy failures and distribute load
         use rand::seq::SliceRandom;
@@ -295,7 +292,7 @@ impl AxiomService {
             email: clean_email.clone(),
             b64_password: base64_password.to_string(),
         };
-        let headers = self.create_headers()?;
+    let headers = self.create_headers()?;
         headers.set("Cookie", &format!("auth-otp-login-token={}", jwt))?;
 
         let url = format!("{}{}", base, path);
@@ -368,47 +365,71 @@ impl AxiomService {
             .as_ref()
             .ok_or_else(|| Error::RustError("No active session".to_string()))?;
 
-        let url = format!("{}/api/auth/refresh", self.base_url);
+    // Align with axiomtrade-rs: POST /refresh-access-token with auth-refresh-token cookie
+    let url = format!("{}/refresh-access-token", self.base_url);
 
-        let body = RefreshTokenRequest {
-            refresh_token: session.refresh_token.clone(),
-        };
-
-        let headers = self.create_headers()?;
+    let headers = self.create_headers()?;
+        headers.set("Cookie", &format!("auth-refresh-token={}", session.refresh_token))?;
 
         let mut request_init = RequestInit::new();
         request_init
             .with_method(Method::Post)
             .with_headers(headers)
-            .with_body(Some(JsValue::from_str(
-                &serde_json::to_string(&body).unwrap(),
-            )));
+            .with_body(None);
 
-        let request = Request::new_with_init(&url, &request_init)?;
-        let mut response = Fetch::Request(request).send().await?;
+    let request = Request::new_with_init(&url, &request_init)?;
+    let response = Fetch::Request(request).send().await?;
 
         if response.status_code() == 200 {
-            let text = response.text().await?;
-            let refresh_response: RefreshTokenResponse =
-                serde_json::from_str(&text).map_err(|e| {
-                    Error::RustError(format!("Failed to parse refresh response: {}", e))
-                })?;
-
-            if refresh_response.success {
-                if let Some(new_access_token) = refresh_response.access_token {
-                    if let Some(session) = &mut self.session {
-                        session.access_token = new_access_token;
-                        session.expires_at = chrono::Utc::now().timestamp() + 3600;
-                    }
-                }
+            // Try to extract token from Set-Cookie like the reference client
+            let mut new_access: Option<String> = None;
+            if let Ok(Some(cookie_header)) = response.headers().get("set-cookie") {
+                new_access = extract_cookie(&cookie_header, "auth-access-token");
             }
-            Ok(())
+            if let Some(token) = new_access {
+                if let Some(session) = &mut self.session {
+                    session.access_token = token;
+                    session.expires_at = chrono::Utc::now().timestamp() + 3600;
+                }
+                Ok(())
+            } else {
+                Err(Error::RustError("Token refresh succeeded but no access token found".to_string()))
+            }
         } else {
             Err(Error::RustError(format!(
                 "Token refresh failed with status: {}",
                 response.status_code()
             )))
         }
+    }
+
+    // Optional: native SDK path for non-WASM targets. Not used in Cloudflare Worker builds.
+    #[cfg(feature = "axiomtrade")]
+    pub async fn login_with_axiomtrade_sdk(
+        &mut self,
+        email: &str,
+        password: &str,
+        otp_code: Option<String>,
+    ) -> Result<LoginStep2Response> {
+        use axiomtrade_rs::auth::AuthClient;
+        let mut client = AuthClient::new().map_err(|e| Error::RustError(format!("SDK init error: {}", e)))?;
+        let tokens = client
+            .login(email, password, otp_code)
+            .await
+            .map_err(|e| Error::RustError(format!("SDK login error: {}", e)))?;
+        self.session = Some(AxiomSession {
+            access_token: tokens.access_token.clone(),
+            refresh_token: tokens.refresh_token.clone(),
+            user_id: email.to_string(),
+            expires_at: chrono::Utc::now().timestamp() + 3600,
+        });
+        Ok(LoginStep2Response {
+            success: true,
+            access_token: Some(tokens.access_token),
+            refresh_token: Some(tokens.refresh_token),
+            user_id: Some(email.to_string()),
+            message: Some("Authenticated via axiomtrade-rs".to_string()),
+        })
     }
 
     /// Get portfolio information
@@ -495,25 +516,19 @@ pub async fn authenticate_with_axiom(
 
     console_log!("🔐 AXIOM: Login step 1 successful, waiting for OTP email...");
 
-    // Wait for OTP email and extract code
-    let mut otp_code = None;
-    for attempt in 0..10 {
-        // Try for up to 20 seconds
-        if attempt > 0 {
-            // Wait 2 seconds between attempts
-            console_log!("🔐 AXIOM: Attempt {} to fetch OTP code...", attempt + 1);
+    // Wait for OTP email and extract code (single retry after 10 seconds)
+    let otp = match gmail_service.get_axiom_2fa_code(email).await {
+        Ok(Some(code)) => code,
+        Ok(None) => {
+            console_log!("🔐 AXIOM: No OTP on first try, waiting 10s for a single retry...");
+            gloo_timers::future::sleep(std::time::Duration::from_secs(10)).await;
+            match gmail_service.get_axiom_2fa_code(email).await {
+                Ok(Some(code2)) => code2,
+                _ => return Err(Error::RustError("Failed to retrieve OTP code from email".to_string())),
+            }
         }
-
-        if let Ok(Some(code)) = gmail_service.get_axiom_2fa_code(email).await {
-            otp_code = Some(code);
-            break;
-        }
-
-        // In a real implementation, we'd use a proper delay here
-    }
-
-    let otp = otp_code
-        .ok_or_else(|| Error::RustError("Failed to retrieve OTP code from email".to_string()))?;
+        Err(e) => return Err(e),
+    };
 
     console_log!("🔐 AXIOM: OTP code retrieved: {}", otp);
 

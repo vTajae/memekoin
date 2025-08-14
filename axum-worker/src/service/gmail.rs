@@ -60,7 +60,7 @@ impl GmailService {
         Ok(Self { access_token })
     }
 
-    /// Search for Axiom 2FA code email sent in the last 5 minutes.
+    /// Search for Axiom 2FA code email sent in the last 2 minutes.
     /// Gmail query design based on official filtering syntax reference:
     ///   - newer_than:5m restricts to last 5 minutes (more concise than after:unix_ts)
     ///   - from:(no-reply@axiom.trade OR axiom) matches explicit address or display name containing 'Axiom'
@@ -68,18 +68,29 @@ impl GmailService {
     ///   - label:inbox biases toward primary received mail.
     /// We attempt a primary query then a looser fallback if no code found.
     pub async fn get_axiom_2fa_code(&self, _user_email: &str) -> Result<Option<String>> {
-        console_log!("📧 GMAIL 2FA: Begin lookup (<=5m window)");
-        let primary_query = "label:inbox newer_than:5m (from:(no-reply@axiom.trade OR axiom)) (\"security code\" OR \"Axiom security code\" OR \"code is:\")";
+        self.get_axiom_2fa_code_within(120, 2).await
+    }
+
+    /// Flexible lookup: search within X minutes and accept emails up to max_age_secs old
+    pub async fn get_axiom_2fa_code_within(&self, max_age_secs: i64, minutes: u32) -> Result<Option<String>> {
+        console_log!("📧 GMAIL 2FA: Begin lookup (<= {}m window)", minutes);
+        let primary_query = format!(
+            "label:inbox newer_than:{}m (from:(no-reply@axiom.trade)) (\"Axiom security code\" OR \"code is:\")",
+            minutes
+        );
         console_log!("📧 GMAIL 2FA: Primary query => {}", primary_query);
-        if let Some(code) = self.try_query_for_code(primary_query).await? { return Ok(Some(code)); }
-        let fallback_query = "newer_than:5m (from:(no-reply@axiom.trade OR axiom)) (code OR verification OR \"is:\")";
+        if let Some(code) = self.try_query_for_code(&primary_query, max_age_secs).await? { return Ok(Some(code)); }
+        let fallback_query = format!(
+            "newer_than:{}m (from:(no-reply@axiom.trade)) (\"is:\")",
+            minutes
+        );
         console_log!("📧 GMAIL 2FA: Fallback query => {}", fallback_query);
-        if let Some(code) = self.try_query_for_code(fallback_query).await? { return Ok(Some(code)); }
+        if let Some(code) = self.try_query_for_code(&fallback_query, max_age_secs).await? { return Ok(Some(code)); }
         console_log!("📧 GMAIL 2FA: No code found after both queries");
         Ok(None)
     }
 
-    async fn try_query_for_code(&self, query: &str) -> Result<Option<String>> {
+    async fn try_query_for_code(&self, query: &str, max_age_secs: i64) -> Result<Option<String>> {
         console_log!("📧 GMAIL 2FA: Executing query => {}", query);
         let messages = self.search_messages(query).await?;
         match messages {
@@ -88,24 +99,31 @@ impl GmailService {
                 console_log!("📧 GMAIL 2FA: {} messages returned (limit 8 processed)", msgs.len());
                 for (i, msg) in msgs.iter().take(8).enumerate() {
                     console_log!("📧 GMAIL 2FA: Fetching message {} id={} thread={}", i, msg.id, msg.thread_id);
-                    match self.get_message(&msg.id).await {
+            match self.get_message(&msg.id).await {
                         Ok(full) => {
-                            if let Some(subj) = Self::header_value(&full, "Subject") { console_log!("📧 GMAIL 2FA:   Subject: {}", subj); }
-                            if let Some(from) = Self::header_value(&full, "From") { console_log!("📧 GMAIL 2FA:   From: {}", from); }
-                            if let Some(date) = Self::header_value(&full, "Date") { console_log!("📧 GMAIL 2FA:   Date: {}", date); }
-                            let body_preview = self.get_message_body(&full).map(|b| sanitize_log_snippet(&b)).unwrap_or_else(|| "<no body>".into());
-                            console_log!("📧 GMAIL 2FA:   Body preview: {}", body_preview);
-                            match self.extract_2fa_code(&full) {
-                                Some(code) => {
-                                    console_log!("📧 GMAIL 2FA:   ✅ Candidate code: {}", code);
-                                    if code.len() == 6 && code.chars().all(|c| c.is_ascii_digit()) {
-                                        console_log!("📧 GMAIL 2FA:   ✅ Accepted 6-digit code");
-                                        return Ok(Some(code));
-                                    } else {
-                                        console_log!("📧 GMAIL 2FA:   ❌ Rejected (not 6 digits numeric)");
+                // Minimal metadata for debugging; avoid dumping bodies
+                if let Some(subj) = Self::header_value(&full, "Subject") { console_log!("📧 GMAIL 2FA:   Subject: {}", subj); }
+                if let Some(date) = Self::header_value(&full, "Date") { console_log!("📧 GMAIL 2FA:   Date: {}", date); }
+                            // Ensure message freshness
+                            if let Some(date_str) = Self::header_value(&full, "Date") {
+                                match chrono::DateTime::parse_from_rfc2822(&date_str) {
+                                    Ok(dt) => {
+                                        let age = (Utc::now() - dt.with_timezone(&Utc)).num_seconds();
+                                        if age > max_age_secs {
+                                            console_log!("📧 GMAIL 2FA:   Skipping message (age {}s > {}s)", age, max_age_secs);
+                                            continue;
+                                        }
+                                    }
+                                    Err(e) => {
+                                        console_log!("📧 GMAIL 2FA:   Could not parse Date header: {}", e);
                                     }
                                 }
-                                None => console_log!("📧 GMAIL 2FA:   No code pattern matched"),
+                            }
+                            if let Some(code) = self.extract_2fa_code(&full) {
+                                if code.len() == 6 && code.chars().all(|c| c.is_ascii_digit()) {
+                                    console_log!("📧 GMAIL 2FA:   ✅ OTP accepted from message {}", msg.id);
+                                    return Ok(Some(code));
+                                }
                             }
                         }
                         Err(e) => console_log!("📧 GMAIL 2FA:   ⚠️ Failed to fetch message {}: {:?}", msg.id, e),
@@ -193,16 +211,20 @@ impl GmailService {
     ///  2. Generic "is: 123456"
     ///  3. Other fallback patterns (e.g., "123456 is your", "code: 123456")
     fn extract_2fa_code(&self, message: &FullMessage) -> Option<String> {
-    let raw_body = match self.get_message_body(message) { Some(b) => b, None => { console_log!("📧 GMAIL 2FA: extract_2fa_code no body" ); return None; } };
+    let raw_body = match self.get_message_body(message) { Some(b) => b, None => { return None; } };
     let body_text = Self::strip_html(&raw_body).replace('\r', "");
-    console_log!("📧 GMAIL 2FA: extract_2fa_code body_len={}", body_text.len());
-        // Ordered regex list (first match wins)
+        // Ordered regex list (first match wins) - broadened to common variants
         let ordered_patterns = [
-            r"Your\s+Axiom\s+security\s+code\s+is:\s*(\d{6})"
+            r"Your\s+Axiom\s+security\s+code\s+is:?\s*(\d{6})",
+            r"Your\s+security\s+code\s+is:?\s*(\d{6})",
+            r"security\s+code\s+is:?\s*(\d{6})",
+            r"code\s+is:?\s*(\d{6})",
+            r"(\d{6})\s+is\s+your",
+            r"code[:\s]+(\d{6})",
         ];
         for pat in ordered_patterns.iter() {
             if let Ok(re) = regex::Regex::new(pat) {
-                if let Some(cap) = re.captures(&body_text) { let c = cap.get(1)?.as_str().to_string(); console_log!("📧 GMAIL 2FA: Pattern '{}' matched {}", pat, c); return Some(c); }
+                if let Some(cap) = re.captures(&body_text) { let c = cap.get(1)?.as_str().to_string(); return Some(c); }
             }
         }
         None

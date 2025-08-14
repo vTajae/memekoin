@@ -289,7 +289,7 @@ pub async fn handle_axiom_auth(
         .get("x-axiom-otp-jwt")
         .and_then(|hv| hv.to_str().ok())
         .map(|s| s.to_string());
-    use crate::service::axiom::AxiomService as BackendAxiomService;
+    use crate::client::AxiomClient;
     // (Future) Import session repository when persistence is fully wired: use crate::repository::session::SessionRepository;
     use futures::channel::oneshot;
     console_log!(
@@ -330,7 +330,7 @@ pub async fn handle_axiom_auth(
             if email.is_empty() || password.is_empty() {
                 build_error("Email and password are required")
             } else {
-                let mut axiom = BackendAxiomService::new();
+                let mut axiom = AxiomClient::new();
                 match axiom.login_step1(&email, &password).await {
                     Ok(login_resp) => {
                         if login_resp.success {
@@ -364,11 +364,7 @@ pub async fn handle_axiom_auth(
                 }
             }
         } else if inferred_step == "2fa" {
-            // JWT from header or body
-            let jwt = if let Some(h) = header_axiom_jwt_cloned.clone() { h } else if let Some(b) = req_clone.session_id.clone() { b } else { let _ = tx.send(build_error("JWT is required for 2FA")); return; };
-            // OTP code required
-            let otp = if let Some(o) = req_clone.otp_code.clone() { o } else { let _ = tx.send(build_error("OTP code is required for 2FA")); return; };
-            // Determine email
+            // Determine email first (for both SDK and fallback flows)
             let email = if let Some(e) = req_clone.email.clone().filter(|e| !e.is_empty()) { e } else {
                 if let Some(session_cookie_id) = web_session_cookie_cloned.clone() {
                     match session_service.get_user_session_data(&session_cookie_id).await {
@@ -377,9 +373,55 @@ pub async fn handle_axiom_auth(
                     }
                 } else { let _ = tx.send(build_error("Email is required for 2FA")); return; }
             };
+
+            // Native-only fast path using axiomtrade-rs SDK (optional feature). This can auto-fetch OTP.
+            #[cfg(all(feature = "axiomtrade", not(target_arch = "wasm32")))]
+            if req_clone.password.is_some() {
+                let mut axiom = AxiomClient::new();
+                match axiom
+                    .login_via_sdk(&email, &req_clone.password.clone().unwrap(), req_clone.otp_code.clone())
+                    .await
+                {
+                    Ok(step2_resp) => {
+                        if step2_resp.success {
+                            if let Some(session_cookie_id) = web_session_cookie_cloned.clone() {
+                                let _ = session_service.update_axiom_tokens(
+                                    &session_cookie_id,
+                                    step2_resp.access_token.clone(),
+                                    step2_resp.refresh_token.clone(),
+                                    step2_resp.user_id.clone(),
+                                    Utc::now(),
+                                ).await;
+                            }
+                            let _ = tx.send(AxiomAuthResponse {
+                                success: true,
+                                next_step: Some("complete".into()),
+                                session_id: web_session_cookie_cloned.clone(),
+                                axiom_jwt: None,
+                                message: step2_resp.message.or(Some("Authentication successful!".into())),
+                                user_data: Some(AxiomUserData {
+                                    email: email.clone(),
+                                    name: "Axiom Trader".into(),
+                                    account_id: step2_resp.user_id.clone().unwrap_or_else(|| "AXIOM_LIVE".into()),
+                                    trading_enabled: true,
+                                }),
+                            });
+                            return;
+                        }
+                    }
+                    Err(_e) => {
+                        // Fall through to the regular fallback path below
+                    }
+                }
+            }
+
+            // Fallback WASM-compatible flow using JWT + OTP
+            let jwt = if let Some(h) = header_axiom_jwt_cloned.clone() { h } else if let Some(b) = req_clone.session_id.clone() { b } else { let _ = tx.send(build_error("JWT is required for 2FA")); return; };
+            // OTP code required in fallback
+            let otp = if let Some(o) = req_clone.otp_code.clone() { o } else { let _ = tx.send(build_error("OTP code is required for 2FA")); return; };
             // Use provided b64 password or derive from raw (same as step1)
             let b64_pw = if let Some(b) = req_clone.base64_password.clone() { b } else if let Some(raw) = req_clone.password.clone() { crate::service::axiom::AxiomService::hash_password(&raw) } else { let _ = tx.send(build_error("Password is required for 2FA")); return; };
-            let mut axiom = BackendAxiomService::new();
+            let mut axiom = AxiomClient::new();
             match axiom.login_step2(&jwt, &otp, &email, &b64_pw).await {
                 Ok(step2_resp) => {
                     if step2_resp.success {
@@ -395,8 +437,68 @@ pub async fn handle_axiom_auth(
                             user_data: Some(AxiomUserData { email: email.clone(), name: "Axiom Trader".into(), account_id: step2_resp.user_id.clone().unwrap_or_else(|| "AXIOM_LIVE".into()), trading_enabled: true }),
                         }
                     } else {
-                        let message = match step2_resp.message.clone() { Some(m) if m.contains("Try again later") || m.contains("Rate limit") => Some("Try again later".to_string()), other => other };
-                        AxiomAuthResponse { success: false, next_step: None, session_id: web_session_cookie_cloned.clone(), axiom_jwt: Some(jwt), message: message.or(Some("2FA verification failed".to_string())), user_data: None }
+                        // Wait and retry: fetch a fresh code via Gmail API after 10 seconds, then attempt again once
+                        worker::console_log!("🔁 AXIOM 2FA: First attempt failed, waiting 10s to fetch a fresh OTP via Gmail...");
+                        gloo_timers::future::sleep(std::time::Duration::from_secs(10)).await;
+
+                        // Attempt to fetch a newer code using stored Gmail token
+                        let fresh_code = {
+                            let mut token_opt = None;
+                            if let Some(session_cookie_id) = web_session_cookie_cloned.clone() {
+                                if let Ok(Some(user_session)) = session_service.get_user_session_data(&session_cookie_id).await {
+                                    if let Ok(user_uuid) = uuid::Uuid::parse_str(&user_session.user_id) {
+                                        if let Ok(tok) = session_service.get_latest_google_access_token_by_user_id(user_uuid).await { token_opt = tok; }
+                                    }
+                                }
+                            }
+                            if token_opt.is_none() {
+                                if let Ok(tok) = session_service.get_latest_google_access_token(&email).await { token_opt = tok; }
+                            }
+                            if let Some(token) = token_opt {
+                                match crate::service::gmail::GmailService::new(token).await {
+                                    Ok(gmail) => {
+                                        // Try default strict window, then a single flexible fallback (<=4m window, <=300s age)
+                                        match gmail.get_axiom_2fa_code(&email).await {
+                                            Ok(Some(c)) => Some(c),
+                                            Ok(None) => match gmail.get_axiom_2fa_code_within(300, 4).await { Ok(Some(c2)) => Some(c2), _ => None },
+                                            Err(_) => None,
+                                        }
+                                    },
+                                    Err(_) => None,
+                                }
+                            } else { None }
+                        };
+
+                        if let Some(new_code) = fresh_code.filter(|c| c != &otp) {
+                            worker::console_log!("🔁 AXIOM 2FA: Retrying with freshly fetched OTP");
+                            match axiom.login_step2(&jwt, &new_code, &email, &b64_pw).await {
+                                Ok(step2b) if step2b.success => {
+                                    if let Some(session_cookie_id) = web_session_cookie_cloned.clone() {
+                                        let _ = session_service.update_axiom_tokens(&session_cookie_id, step2b.access_token.clone(), step2b.refresh_token.clone(), step2b.user_id.clone(), Utc::now()).await;
+                                    }
+                                    AxiomAuthResponse {
+                                        success: true,
+                                        next_step: Some("complete".into()),
+                                        session_id: web_session_cookie_cloned.clone(),
+                                        axiom_jwt: None,
+                                        message: step2b.message.or(Some("Authentication successful!".into())),
+                                        user_data: Some(AxiomUserData { email: email.clone(), name: "Axiom Trader".into(), account_id: step2b.user_id.clone().unwrap_or_else(|| "AXIOM_LIVE".into()), trading_enabled: true }),
+                                    }
+                                }
+                                Ok(step2b) => {
+                                    let message = match step2b.message.clone() { Some(m) if m.contains("Try again later") || m.contains("Rate limit") => Some("Try again later".to_string()), other => other };
+                                    AxiomAuthResponse { success: false, next_step: None, session_id: web_session_cookie_cloned.clone(), axiom_jwt: Some(jwt), message: message.or(Some("2FA verification failed".to_string())), user_data: None }
+                                }
+                                Err(e2) => {
+                                    let msg = e2.to_string();
+                                    let friendly = if msg.contains("Rate limit exceeded") { "Try again later".to_string() } else { format!("2FA verification failed: {}", msg) };
+                                    AxiomAuthResponse { success: false, next_step: None, session_id: web_session_cookie_cloned.clone(), axiom_jwt: Some(jwt), message: Some(friendly), user_data: None }
+                                }
+                            }
+                        } else {
+                            let message = match step2_resp.message.clone() { Some(m) if m.contains("Try again later") || m.contains("Rate limit") => Some("Try again later".to_string()), other => other };
+                            AxiomAuthResponse { success: false, next_step: None, session_id: web_session_cookie_cloned.clone(), axiom_jwt: Some(jwt), message: message.or(Some("2FA verification failed".to_string())), user_data: None }
+                        }
                     }
                 }
                 Err(e) => {

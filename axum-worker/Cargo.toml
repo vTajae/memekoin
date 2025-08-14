@@ -96,4 +96,15 @@ bcrypt = "0.15.0"
 pbkdf2 = "0.12.2"
 hmac = "0.12.1"
 
+# WASM-friendly timers for async sleep
+gloo-timers = { version = "0.2", features = ["futures"] }
+
+# Optional Axiom Trade SDK integration (native reqwest/tokio stack). Disabled by default to keep wasm builds working.
+axiomtrade-rs = { version = "0.1.0", optional = true }
+
+[features]
+default = []
+# Enable to use axiomtrade-rs where available (non-wasm targets). Our code guards usage behind cfg(feature = "axiomtrade").
+axiomtrade = ["dep:axiomtrade-rs"]
+
 

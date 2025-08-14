@@ -348,31 +348,48 @@ pub async fn gmail_axiom_2fa(
     let (tx, rx) = futures::channel::oneshot::channel();
     wasm_bindgen_futures::spawn_local(async move {
         let repo = crate::repository::auth::AuthRepository::new(Arc::clone(&db));
-        let result: Result<GmailAxiom2FAResponse, GmailAxiom2FAResponse> = async {
+        let result: GmailAxiom2FAResponse = async {
+            // Gmail API with a single retry after 10 seconds
             let access_token = match repo.get_latest_google_access_token(&email).await {
                 Ok(Some(t)) => t,
-                Ok(None) => return Err(GmailAxiom2FAResponse { success: false, message: Some("No access token found".into()), otp_code: None }),
-                Err(e) => return Err(GmailAxiom2FAResponse { success: false, message: Some(format!("DB error: {}", e)), otp_code: None }),
+                Ok(None) => return GmailAxiom2FAResponse { success: false, message: Some("No access token found".into()), otp_code: None },
+                Err(e) => return GmailAxiom2FAResponse { success: false, message: Some(format!("DB error: {}", e)), otp_code: None },
             };
             let gmail = match crate::service::gmail::GmailService::new(access_token).await {
                 Ok(g) => g,
-                Err(e) => return Err(GmailAxiom2FAResponse { success: false, message: Some(format!("Init Gmail failed: {:?}", e)), otp_code: None }),
+                Err(e) => return GmailAxiom2FAResponse { success: false, message: Some(format!("Init Gmail failed: {:?}", e)), otp_code: None },
             };
+
             match gmail.get_axiom_2fa_code(&email).await {
-                Ok(Some(code)) => Ok(GmailAxiom2FAResponse { success: true, message: None, otp_code: Some(code) }),
-                Ok(None) => Err(GmailAxiom2FAResponse { success: false, message: Some("No 2FA code found".into()), otp_code: None }),
-                Err(e) => Err(GmailAxiom2FAResponse { success: false, message: Some(format!("Gmail API error: {:?}", e)), otp_code: None }),
+                Ok(Some(code)) => {
+                    return GmailAxiom2FAResponse { success: true, message: Some("OTP found on first attempt".into()), otp_code: Some(code) };
+                }
+                Ok(None) => {
+                    worker::console_log!("📧 GMAIL 2FA: No code yet, waiting 10s for a single retry");
+                    gloo_timers::future::sleep(std::time::Duration::from_secs(10)).await;
+                    match gmail.get_axiom_2fa_code(&email).await {
+                        Ok(Some(code2)) => GmailAxiom2FAResponse { success: true, message: Some("OTP found on retry".into()), otp_code: Some(code2) },
+                        Ok(None) => {
+                            // Final, single flexible attempt: expand window to 4m and allow up to 5m age to catch slight delays
+                            worker::console_log!("📧 GMAIL 2FA: Final flexible attempt (window <=4m, age<=300s)");
+                            match gmail.get_axiom_2fa_code_within(300, 4).await {
+                                Ok(Some(code3)) => GmailAxiom2FAResponse { success: true, message: Some("OTP found on final attempt".into()), otp_code: Some(code3) },
+                                Ok(None) => GmailAxiom2FAResponse { success: false, message: Some("No 2FA code found".into()), otp_code: None },
+                                Err(e) => GmailAxiom2FAResponse { success: false, message: Some(format!("Gmail API error: {:?}", e)), otp_code: None },
+                            }
+                        }
+                        Err(e) => GmailAxiom2FAResponse { success: false, message: Some(format!("Gmail API error: {:?}", e)), otp_code: None },
+                    }
+                }
+                Err(e) => {
+                    GmailAxiom2FAResponse { success: false, message: Some(format!("Gmail API error: {:?}", e)), otp_code: None }
+                }
             }
         }.await;
         let _ = tx.send(result);
     });
     match rx.await {
-        Ok(Ok(resp)) => (StatusCode::OK, Json(resp)).into_response(),
-        Ok(Err(err)) => {
-            // Distinguish not found vs other errors for better frontend UX
-            let status = if err.message.as_deref() == Some("No 2FA code found") { StatusCode::NOT_FOUND } else { StatusCode::BAD_REQUEST };
-            (status, Json(err)).into_response()
-        }
+        Ok(resp) => (StatusCode::OK, Json(resp)).into_response(),
         Err(_) => (StatusCode::INTERNAL_SERVER_ERROR, Json(GmailAxiom2FAResponse { success: false, message: Some("Channel closed".into()), otp_code: None })).into_response(),
     }
 }

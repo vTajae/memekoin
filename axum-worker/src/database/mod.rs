@@ -34,7 +34,7 @@ pub type Row = tokio_postgres::Row;
 /// WASM-compatible database using NeonClient
 #[derive(Clone)]
 pub struct Database {
-    client: NeonClient,
+    client: Option<NeonClient>,
     #[allow(dead_code)]
     config: DatabaseConfig,
 }
@@ -58,7 +58,7 @@ impl Database {
         
         // Now try to create NeonClient using the connection string we already have
         worker::console_log!("DATABASE::from_env - Creating NeonClient with connection string");
-        let client = NeonClient::new(connection_string.clone()).await.map_err(|e| {
+    let client = NeonClient::new(connection_string.clone()).await.map_err(|e| {
             worker::console_log!("DATABASE::from_env - NeonClient creation failed: {:?}", e);
             e
         })?;
@@ -67,7 +67,7 @@ impl Database {
         let config = DatabaseConfig::from_env(connection_string);
         
         worker::console_log!("DATABASE::from_env - Database initialization complete");
-        Ok(Self { client, config })
+    Ok(Self { client: Some(client), config })
     }
 
     /// Create new database with an explicit connection string (preferred when AppState resolves env)
@@ -84,12 +84,35 @@ impl Database {
 
         let client = NeonClient::new(connection_string.clone()).await?;
         let config = DatabaseConfig::from_env(connection_string);
-        Ok(Self { client, config })
+        Ok(Self { client: Some(client), config })
+    }
+
+    /// Lenient initializer: returns a stub Database when connection fails.
+    /// Useful for local dev where DB might be unavailable.
+    pub async fn from_url_or_stub(connection_string: &str) -> Self {
+        let connection_string = connection_string.to_string();
+        worker::console_log!(
+            "DATABASE::from_url_or_stub - Attempting NeonClient with URL: {}...",
+            connection_string.chars().take(30).collect::<String>()
+        );
+        match NeonClient::new(connection_string.clone()).await {
+            Ok(client) => {
+                worker::console_log!("DATABASE::from_url_or_stub - Connected successfully");
+                Self { client: Some(client), config: DatabaseConfig::from_env(connection_string) }
+            }
+            Err(e) => {
+                worker::console_log!("DATABASE::from_url_or_stub - Connection failed, continuing without DB: {:?}", e);
+                Self { client: None, config: DatabaseConfig::from_env(connection_string) }
+            }
+        }
     }
 
     /// Execute a query using NeonClient
     pub async fn query(&self, query: &str, params: &[&(dyn tokio_postgres::types::ToSql + Sync)]) -> Result<Vec<Row>, AppError> {
-        self.client.execute_query(query, params).await
+        match &self.client {
+            Some(c) => c.execute_query(query, params).await,
+            None => Err(AppError::DatabaseError("Database not initialized".to_string())),
+        }
     }
 
     /// Execute a query expecting a single row
@@ -107,14 +130,22 @@ impl Database {
 
     /// Execute a statement (INSERT, UPDATE, DELETE)
     pub async fn execute(&self, query: &str, params: &[&(dyn tokio_postgres::types::ToSql + Sync)]) -> Result<u64, AppError> {
-        let affected_rows = self.client.client.execute(query, params).await
-            .map_err(|e| AppError::DatabaseError(format!("Execute failed: {}", e)))?;
-        Ok(affected_rows)
+        match &self.client {
+            Some(c) => {
+                let affected_rows = c.client.execute(query, params).await
+                    .map_err(|e| AppError::DatabaseError(format!("Execute failed: {}", e)))?;
+                Ok(affected_rows)
+            }
+            None => Err(AppError::DatabaseError("Database not initialized".to_string())),
+        }
     }
 
     /// Test database connection
     pub async fn test_connection(&self) -> Result<(), AppError> {
-        self.client.test_connection().await
+        match &self.client {
+            Some(c) => c.test_connection().await,
+            None => Err(AppError::DatabaseError("Database not initialized".to_string())),
+        }
     }
 }
 

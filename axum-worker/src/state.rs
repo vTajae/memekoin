@@ -91,10 +91,10 @@ impl AppState {
             database_url: secret_or_var(&env, "DEV_DATABASE_URL")                .unwrap_or("postgres://leptos_user:leptos_pass@localhost:5432/leptos_db".to_string()),
         };
 
-        // Initialize database client
-        worker::console_log!("DATABASE: Initializing core client...");
-        let database = Arc::new(Database::from_url(&app_config.database_url).await?);
-        worker::console_log!("DATABASE: Initialized successfully");
+    // Initialize database client (lenient for local dev): continue even if DB is unreachable
+    worker::console_log!("DATABASE: Initializing core client...");
+    let database = Arc::new(Database::from_url_or_stub(&app_config.database_url).await);
+    worker::console_log!("DATABASE: Initialized (may be stub if connection failed)");
 
         worker::console_log!("APPSTATE: Core clients prepared");
 

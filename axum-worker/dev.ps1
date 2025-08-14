@@ -1,31 +1,37 @@
-# Development script to run both frontend and backend servers
+#!/usr/bin/env pwsh
 
-Write-Host "Starting development servers..." -ForegroundColor Green
+# Exit on error
+$ErrorActionPreference = "Stop"
 
-# Kill any existing processes
-Write-Host "Killing existing processes..." -ForegroundColor Yellow
-Get-Process | Where-Object {$_.ProcessName -match "cargo|trunk|wrangler|node"} | Stop-Process -Force -ErrorAction SilentlyContinue
+# Variables to track processes
+$TrunkJob = $null
 
-# Start backend server
-Write-Host "Starting backend server (axum-worker) on port 8787..." -ForegroundColor Cyan
-$backend = Start-Process -FilePath "powershell" -ArgumentList "-NoExit", "-Command", "cd C:\Users\Jason\Desktop\Claudy\Projects\fullstack-leptos-cloudflare-template\axum-worker; cargo watch -x 'run --release'" -PassThru
+# Cleanup function to ensure Trunk is always stopped
+function Cleanup {
+    Write-Host "Stopping Trunk..." -ForegroundColor Yellow
+    if ($TrunkJob -and !$TrunkJob.HasExited) {
+        Stop-Process -Id $TrunkJob.Id -Force -ErrorAction SilentlyContinue
+    }
+}
 
-# Give backend time to start
-Start-Sleep -Seconds 3
+# Register cleanup to run on script exit
+Register-EngineEvent -SourceIdentifier PowerShell.Exiting -Action { Cleanup }
 
-# Start frontend server  
-Write-Host "Starting frontend server (leptos-wasm) on port 3001..." -ForegroundColor Magenta
-$frontend = Start-Process -FilePath "powershell" -ArgumentList "-NoExit", "-Command", "cd C:\Users\Jason\Desktop\Claudy\Projects\fullstack-leptos-cloudflare-template\leptos-wasm; trunk serve --port 3001" -PassThru
-
-Write-Host "`nServers started!" -ForegroundColor Green
-Write-Host "Backend: http://127.0.0.1:8787" -ForegroundColor Cyan
-Write-Host "Frontend: http://127.0.0.1:3001" -ForegroundColor Magenta
-Write-Host "`nPress Ctrl+C to stop all servers" -ForegroundColor Yellow
-
-# Wait for user input to keep script running
-Read-Host "Press Enter to stop servers"
-
-# Kill processes when done
-Write-Host "Stopping servers..." -ForegroundColor Red
-Stop-Process -Id $backend.Id -Force -ErrorAction SilentlyContinue
-Stop-Process -Id $frontend.Id -Force -ErrorAction SilentlyContinue
+try {
+    # Start Trunk in watch mode, outputting to the axum-worker/static directory
+    Set-Location "leptos-wasm"
+    Write-Host "Starting Trunk in watch mode..." -ForegroundColor Green
+    $TrunkJob = Start-Process -FilePath "trunk" -ArgumentList "watch" -PassThru -NoNewWindow
+    
+    # Wait a moment to ensure Trunk has started
+    Start-Sleep -Seconds 2
+    
+    # Start the axum worker in watch mode
+    Set-Location "../axum-worker"
+    Write-Host "Starting Wrangler dev..." -ForegroundColor Green
+    npx wrangler dev
+}
+finally {
+    # Cleanup will be called automatically, but we can also call it explicitly
+    Cleanup
+}
